@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Prototype: allow read/write for all. When you add Firebase Auth,
+    // restrict to: request.auth != null and (optional) request.auth.uid == resource.data.userId
+    match /customers/{docId} {
+      allow read, write: if true;
+    }
+    match /jobs/{docId} {
+      allow read, write: if true;
+    }
+    match /data/inventory {
+      allow read, write: if true;
+    }
+    match /expenses/{docId} {
+      allow read, write: if true;
+    }
+  }
+}
