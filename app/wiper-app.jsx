@@ -367,7 +367,7 @@ function PinModal({ show, onClose, onUnlock }) {
         <h3 style={{ margin: "0 0 16px", fontSize: "18px", fontWeight: "700", color: theme.text }}>Unlock admin</h3>
         <form onSubmit={handleSubmit}>
           <input type="password" inputMode="numeric" placeholder="PIN" value={pin} onChange={e => setPin(e.target.value)} autoFocus
-            style={{ width: "100%", padding: "12px 16px", border: `2px solid ${theme.border}`, borderRadius: "10px", fontSize: "16px", fontFamily: "'DM Sans', sans-serif", boxSizing: "border-box" }} />
+            style={{ width: "100%", padding: "12px 16px", border: `2px solid ${theme.border}`, borderRadius: "10px", fontSize: "16px", fontFamily: "'DM Sans', sans-serif", boxSizing: "border-box", background: "#fff", color: theme.text, caretColor: theme.text, WebkitTextFillColor: theme.text }} />
           {error && <p style={{ color: theme.warning, fontSize: "14px", margin: "8px 0 0" }}>{error}</p>}
           <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
             <button type="button" onClick={handleCancel} style={{ ...baseBtn, flex: 1, padding: "12px", background: "#F0F2F5", color: theme.text }}>Cancel</button>
@@ -539,11 +539,24 @@ export default function WiperBladeApp() {
           background: "linear-gradient(135deg, #0D47A1 0%, #1565C0 50%, #00BCD4 100%)",
           padding: "28px 20px 24px", color: "white",
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "4px" }}>
-            <div style={{ color: "#00BCD4" }}><Icons.Droplet /></div>
-            <h1 style={{ margin: 0, fontSize: "22px", fontWeight: "800", fontFamily: "'DM Sans', sans-serif" }}>ClearView Wipers</h1>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "4px" }}>
+                <div style={{ color: "#00BCD4" }}><Icons.Droplet /></div>
+                <h1 style={{ margin: 0, fontSize: "22px", fontWeight: "800", fontFamily: "'DM Sans', sans-serif" }}>ClearView Wipers</h1>
+              </div>
+              <p style={{ margin: "4px 0 0 44px", fontSize: "14px", opacity: 0.8 }}>{today}</p>
+            </div>
+            <button type="button" onClick={() => {
+              if (typeof sessionStorage !== "undefined") sessionStorage.removeItem(ADMIN_UNLOCKED_KEY);
+              setUserRole("employee");
+            }} style={{
+              background: "rgba(255,255,255,0.2)", border: "none", color: "white", borderRadius: "8px",
+              padding: "6px 10px", fontSize: "12px", cursor: "pointer", fontWeight: "600",
+            }}>
+              Lock
+            </button>
           </div>
-          <p style={{ margin: "4px 0 0 44px", fontSize: "14px", opacity: 0.8 }}>{today}</p>
         </div>
 
         <div style={{ padding: "20px" }}>
@@ -615,17 +628,6 @@ export default function WiperBladeApp() {
             </div>
           )}
 
-          <div style={{ marginTop: "24px", textAlign: "center" }}>
-            <button type="button" onClick={() => {
-              if (typeof sessionStorage !== "undefined") sessionStorage.removeItem(ADMIN_UNLOCKED_KEY);
-              setUserRole("employee");
-            }} style={{
-              background: "none", border: "none", cursor: "pointer", fontSize: "12px", color: theme.textLight,
-              textDecoration: "underline",
-            }}>
-              Lock
-            </button>
-          </div>
         </div>
       </div>
     );
