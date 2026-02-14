@@ -113,10 +113,12 @@ function getModelSuggestions(make, modelInput) {
     .slice(0, 8);
 }
 
+const SEATTLE_VIEWBOX = "-122.44,47.50,-122.15,47.73"; // min_lon, min_lat, max_lon, max_lat
+
 async function geocodeAddress(address) {
   const q = (address || "").trim();
   if (!q) return null;
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1`;
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&viewbox=${SEATTLE_VIEWBOX}&bounded=1`;
   const res = await fetch(url, {
     headers: { "Accept": "application/json", "User-Agent": "ClearViewWipers/1.0" },
   });
@@ -125,6 +127,23 @@ async function geocodeAddress(address) {
   if (!data || data.length === 0) return null;
   const { lat, lon, display_name } = data[0];
   return { lat: parseFloat(lat), lon: parseFloat(lon), displayName: display_name };
+}
+
+async function fetchAddressSuggestions(query) {
+  const q = (query || "").trim();
+  if (q.length < 3) return [];
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&viewbox=${SEATTLE_VIEWBOX}&bounded=1`;
+  const res = await fetch(url, {
+    headers: { "Accept": "application/json", "User-Agent": "ClearViewWipers/1.0" },
+  });
+  if (!res.ok) return [];
+  const data = await res.json();
+  if (!data || !Array.isArray(data)) return [];
+  return data.map((d) => ({
+    displayName: d.display_name,
+    lat: parseFloat(d.lat),
+    lon: parseFloat(d.lon),
+  }));
 }
 
 // ─── Icon Components ───
@@ -410,8 +429,11 @@ export default function WiperBladeApp() {
   const [view, setView] = useState("home");
   const [userRole, setUserRole] = useState("employee"); // Same on server and client to avoid hydration mismatch; updated in useEffect from sessionStorage/Firestore or !auth
   const [authUser, setAuthUser] = useState(null);
-  const [authLoading, setAuthLoading] = useState(!!auth);
+  const [authLoading, setAuthLoading] = useState(false); // false on first paint so server and client match (avoid hydration mismatch when auth exists on client)
   const [showPinModal, setShowPinModal] = useState(false);
+  const [mounted, setMounted] = useState(false); // defer auth/db-dependent UI until after mount so server and client initial HTML match (avoid hydration mismatch)
+
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     const m = window.matchMedia("(prefers-color-scheme: dark)");
@@ -784,6 +806,8 @@ export default function WiperBladeApp() {
     const [verifyLoading, setVerifyLoading] = useState(false);
     const [verifyResult, setVerifyResult] = useState(null);
     const [verifyError, setVerifyError] = useState(null);
+    const [addressSuggestions, setAddressSuggestions] = useState([]);
+    const addressDebounceRef = useRef(null);
 
     const addVehicle = () => setVehicles([...vehicles, { make: "", model: "", year: "", wiperSizes: null }]);
 
@@ -800,6 +824,19 @@ export default function WiperBladeApp() {
     const removeVehicle = (idx) => {
       if (vehicles.length > 1) setVehicles(vehicles.filter((_, i) => i !== idx));
     };
+
+    useEffect(() => {
+      const q = (form.address || "").trim();
+      if (addressDebounceRef.current) clearTimeout(addressDebounceRef.current);
+      if (q.length < 3) {
+        setAddressSuggestions([]);
+        return;
+      }
+      addressDebounceRef.current = setTimeout(() => {
+        fetchAddressSuggestions(form.address).then(setAddressSuggestions);
+      }, 300);
+      return () => { if (addressDebounceRef.current) clearTimeout(addressDebounceRef.current); };
+    }, [form.address]);
 
     const handlePhotoCapture = async (idx) => {
       // Simulate AI identification
@@ -843,7 +880,16 @@ export default function WiperBladeApp() {
               <Input label="Full Name *" placeholder="e.g. John Smith" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
               <Input label="Phone Number *" placeholder="555-123-4567" type="tel" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} />
               <Input label="Email Address *" placeholder="john@example.com" type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
-              <Input label="Address *" placeholder="123 Main Street" value={form.address} onChange={e => { setForm({...form, address: e.target.value}); setVerifyResult(null); setVerifyError(null); }} />
+              <div style={{ marginBottom: "16px" }}>
+                <Input label="Address *" placeholder="123 Main Street" value={form.address} onChange={e => { setForm({...form, address: e.target.value}); setVerifyResult(null); setVerifyError(null); }} onBlur={() => setTimeout(() => setAddressSuggestions([]), 200)} />
+                {addressSuggestions.length > 0 && (
+                  <div style={{ marginTop: 4, maxHeight: 220, overflowY: "auto", border: `1px solid ${theme.border}`, borderRadius: 8, background: theme.card }} role="listbox">
+                    {addressSuggestions.map((s) => (
+                      <div key={s.displayName} role="option" onMouseDown={e => { e.preventDefault(); setForm(f => ({ ...f, address: s.displayName })); setVerifyResult({ lat: s.lat, lon: s.lon, displayName: s.displayName }); setVerifyError(null); setAddressSuggestions([]); }} style={{ padding: "10px 12px", cursor: "pointer", borderBottom: addressSuggestions.indexOf(s) < addressSuggestions.length - 1 ? `1px solid ${theme.border}` : "none", color: theme.text }}>{s.displayName}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
               <div style={{ marginBottom: "16px" }}>
                 <button
                   type="button"
@@ -1024,6 +1070,8 @@ export default function WiperBladeApp() {
     const [verifyLoading, setVerifyLoading] = useState(false);
     const [verifyResult, setVerifyResult] = useState(null);
     const [verifyError, setVerifyError] = useState(null);
+    const [addressSuggestions, setAddressSuggestions] = useState([]);
+    const addressDebounceRef = useRef(null);
 
     const addVehicle = () => setVehicles([...vehicles, { make: "", model: "", year: "", wiperSizes: null }]);
 
@@ -1039,6 +1087,19 @@ export default function WiperBladeApp() {
     const removeVehicle = (idx) => {
       if (vehicles.length > 1) setVehicles(vehicles.filter((_, i) => i !== idx));
     };
+
+    useEffect(() => {
+      const q = (form.address || "").trim();
+      if (addressDebounceRef.current) clearTimeout(addressDebounceRef.current);
+      if (q.length < 3) {
+        setAddressSuggestions([]);
+        return;
+      }
+      addressDebounceRef.current = setTimeout(() => {
+        fetchAddressSuggestions(form.address).then(setAddressSuggestions);
+      }, 300);
+      return () => { if (addressDebounceRef.current) clearTimeout(addressDebounceRef.current); };
+    }, [form.address]);
 
     const handlePhotoCapture = async (idx) => {
       setPhotoIdentifying(true);
@@ -1085,7 +1146,16 @@ export default function WiperBladeApp() {
               <Input label="Full Name *" placeholder="e.g. John Smith" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
               <Input label="Phone Number *" placeholder="555-123-4567" type="tel" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} />
               <Input label="Email Address *" placeholder="john@example.com" type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
-              <Input label="Address *" placeholder="123 Main Street" value={form.address} onChange={e => { setForm({...form, address: e.target.value}); setVerifyResult(null); setVerifyError(null); }} />
+              <div style={{ marginBottom: "16px" }}>
+                <Input label="Address *" placeholder="123 Main Street" value={form.address} onChange={e => { setForm({...form, address: e.target.value}); setVerifyResult(null); setVerifyError(null); }} onBlur={() => setTimeout(() => setAddressSuggestions([]), 200)} />
+                {addressSuggestions.length > 0 && (
+                  <div style={{ marginTop: 4, maxHeight: 220, overflowY: "auto", border: `1px solid ${theme.border}`, borderRadius: 8, background: theme.card }} role="listbox">
+                    {addressSuggestions.map((s) => (
+                      <div key={s.displayName} role="option" onMouseDown={e => { e.preventDefault(); setForm(f => ({ ...f, address: s.displayName })); setVerifyResult({ lat: s.lat, lon: s.lon, displayName: s.displayName }); setVerifyError(null); setAddressSuggestions([]); }} style={{ padding: "10px 12px", cursor: "pointer", borderBottom: addressSuggestions.indexOf(s) < addressSuggestions.length - 1 ? `1px solid ${theme.border}` : "none", color: theme.text }}>{s.displayName}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
               <div style={{ marginBottom: "16px" }}>
                 <button
                   type="button"
@@ -2141,10 +2211,15 @@ export default function WiperBladeApp() {
       colorScheme: isDark ? "dark" : "light",
     }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-      {authUser && (
+      {mounted && authUser && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px", background: theme.border, fontSize: "13px", color: theme.text }}>
           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{authUser.email}</span>
           <button type="button" onClick={() => firebaseSignOut(auth)} style={{ ...baseBtn, padding: "6px 12px", fontSize: "12px", background: "transparent", color: theme.primary }}>Sign out</button>
+        </div>
+      )}
+      {mounted && !db && (
+        <div style={{ padding: "8px 16px", background: theme.warning, color: "white", fontSize: "12px", fontWeight: "600", textAlign: "center" }}>
+          Demo mode – data is not saved. Connect Firebase to persist.
         </div>
       )}
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: "70px" }}>
