@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   setDoc,
   updateDoc,
@@ -11,7 +12,8 @@ import {
   query,
   where,
 } from "firebase/firestore";
-import { db } from "./lib/firebase";
+import { signInWithEmailAndPassword, signOut as firebaseSignOut, onAuthStateChanged } from "firebase/auth";
+import { db, auth } from "./lib/firebase";
 import { WIPER_SIZES_DB } from "./data/wiper-sizes-db";
 import ProfitDashboard from "./profit-dashboard";
 
@@ -139,7 +141,7 @@ const Icons = {
   Back: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>,
   Trash: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>,
   Droplet: () => <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.69l5.66 5.66a8 8 0 11-11.31 0z"/></svg>,
-  Calendar: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+  Calendar: () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
   Search: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
   Chart: () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>,
 };
@@ -258,8 +260,8 @@ function TopBar({ title, onBack, rightAction }) {
   );
 }
 
-function BottomNav({ active, setView }) {
-  const tabs = [
+function BottomNav({ active, setView, userRole }) {
+  const allTabs = [
     { id: "home", icon: Icons.Home, label: "Home" },
     { id: "calendar", icon: Icons.Calendar, label: "Calendar" },
     { id: "customers", icon: Icons.Users, label: "Customers" },
@@ -267,6 +269,7 @@ function BottomNav({ active, setView }) {
     { id: "inventory", icon: Icons.Box, label: "Inventory" },
     { id: "profits", icon: Icons.Chart, label: "Profits" },
   ];
+  const tabs = userRole === "employee" ? allTabs.filter((t) => t.id === "home" || t.id === "jobs") : allTabs;
   return (
     <div style={{
       display: "flex", justifyContent: "space-around", background: "white",
@@ -283,6 +286,7 @@ function BottomNav({ active, setView }) {
             transition: "color 0.2s",
           }}>
             <div style={{
+              display: "flex", alignItems: "center", justifyContent: "center",
               padding: "6px 16px", borderRadius: "16px",
               background: isActive ? "#E3F2FD" : "transparent",
               transition: "background 0.2s",
@@ -297,9 +301,93 @@ function BottomNav({ active, setView }) {
   );
 }
 
+// ─── Login (when Firebase Auth is enabled) ───
+function LoginView() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setSubmitting(true);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (err) {
+      setError(err.message || "Sign in failed");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  return (
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px", background: theme.bg }}>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+      <div style={{ width: "100%", maxWidth: "360px" }}>
+        <h1 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "24px", fontWeight: "700", color: theme.text, marginBottom: "24px", textAlign: "center" }}>ClearView Wipers</h1>
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required
+            style={{ padding: "12px 16px", border: `2px solid ${theme.border}`, borderRadius: "10px", fontSize: "15px", fontFamily: "'DM Sans', sans-serif" }} />
+          <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required
+            style={{ padding: "12px 16px", border: `2px solid ${theme.border}`, borderRadius: "10px", fontSize: "15px", fontFamily: "'DM Sans', sans-serif" }} />
+          {error && <p style={{ color: theme.warning, fontSize: "14px", margin: 0 }}>{error}</p>}
+          <button type="submit" disabled={submitting} style={{ ...baseBtn, padding: "14px", background: theme.primary, color: "white", fontSize: "16px" }}>
+            {submitting ? "Signing in…" : "Sign in"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── PIN modal (unlock admin when not using Firebase login) ───
+function PinModal({ show, onClose, onUnlock }) {
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState("");
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    setError("");
+    const configured = (process.env.NEXT_PUBLIC_ADMIN_PIN || "").trim();
+    if (pin.trim() === configured) {
+      onUnlock();
+      onClose();
+      setPin("");
+    } else {
+      setError("Wrong PIN");
+    }
+  };
+  const handleCancel = () => {
+    setPin("");
+    setError("");
+    onClose();
+  };
+  if (!show) return null;
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.4)" }} onClick={handleCancel}>
+      <div style={{ background: "white", borderRadius: "14px", padding: "24px", width: "90%", maxWidth: "320px", boxShadow: theme.shadow }} onClick={e => e.stopPropagation()}>
+        <h3 style={{ margin: "0 0 16px", fontSize: "18px", fontWeight: "700", color: theme.text }}>Unlock admin</h3>
+        <form onSubmit={handleSubmit}>
+          <input type="password" inputMode="numeric" placeholder="PIN" value={pin} onChange={e => setPin(e.target.value)} autoFocus
+            style={{ width: "100%", padding: "12px 16px", border: `2px solid ${theme.border}`, borderRadius: "10px", fontSize: "16px", fontFamily: "'DM Sans', sans-serif", boxSizing: "border-box" }} />
+          {error && <p style={{ color: theme.warning, fontSize: "14px", margin: "8px 0 0" }}>{error}</p>}
+          <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+            <button type="button" onClick={handleCancel} style={{ ...baseBtn, flex: 1, padding: "12px", background: "#F0F2F5", color: theme.text }}>Cancel</button>
+            <button type="submit" style={{ ...baseBtn, flex: 1, padding: "12px", background: theme.primary, color: "white" }}>Unlock</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main App ───
+const ADMIN_UNLOCKED_KEY = "adminUnlocked";
+
 export default function WiperBladeApp() {
   const [view, setView] = useState("home");
+  const [userRole, setUserRole] = useState("employee"); // Same on server and client to avoid hydration mismatch; updated in useEffect from sessionStorage/Firestore or !auth
+  const [authUser, setAuthUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(!!auth);
+  const [showPinModal, setShowPinModal] = useState(false);
   const [customers, setCustomers] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [inventory, setInventory] = useState({});
@@ -308,6 +396,32 @@ export default function WiperBladeApp() {
   const [subView, setSubView] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
   const [photoIdentifying, setPhotoIdentifying] = useState(false);
+
+  // Auth: when signed in, load role from Firestore users/{uid}; when no auth use stub admin; when auth but no user use sessionStorage
+  useEffect(() => {
+    if (!auth) {
+      setAuthLoading(false);
+      setUserRole("admin");
+      return;
+    }
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      setAuthUser(user);
+      setAuthLoading(false);
+      if (user && db) {
+        try {
+          const snap = await getDoc(doc(db, "users", user.uid));
+          const data = snap.data();
+          setUserRole(data?.role === "employee" ? "employee" : "admin");
+        } catch (e) {
+          console.warn("Failed to load user role", e);
+          setUserRole("admin");
+        }
+      } else {
+        setUserRole(sessionStorage.getItem(ADMIN_UNLOCKED_KEY) === "true" ? "admin" : "employee");
+      }
+    });
+    return () => unsub();
+  }, []);
 
   // Firestore: load or seed demo data; subscribe when db is available
   useEffect(() => {
@@ -405,6 +519,12 @@ export default function WiperBladeApp() {
   });
 
   const nav = (v, sub = null, item = null) => {
+    if (userRole === "employee" && ["calendar", "customers", "inventory", "profits"].includes(v)) {
+      setView("home");
+      setSubView(null);
+      setSelectedItem(null);
+      return;
+    }
     setView(v);
     setSubView(sub);
     setSelectedItem(item);
@@ -493,6 +613,81 @@ export default function WiperBladeApp() {
                 </div>
               </Card>
             </div>
+          )}
+
+          <div style={{ marginTop: "24px", textAlign: "center" }}>
+            <button type="button" onClick={() => {
+              if (auth && !authUser) sessionStorage.removeItem(ADMIN_UNLOCKED_KEY);
+              setUserRole("employee");
+            }} style={{
+              background: "none", border: "none", cursor: "pointer", fontSize: "12px", color: theme.textLight,
+              textDecoration: "underline",
+            }}>
+              {auth && !authUser ? "Lock" : "View as Employee (dev)"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── EMPLOYEE HOME (simplified Today) ───
+  function EmployeeHomeView() {
+    const today = new Date();
+    const todayStr = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
+    const todayLabel = today.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+    const todayScheduled = scheduledJobs.filter((j) => j.scheduledDate === todayStr);
+    const activeJobs = [...todayScheduled, ...pendingJobs.filter((j) => !todayScheduled.some((t) => t.id === j.id))];
+
+    return (
+      <div>
+        <TopBar title="Today" onBack={null} rightAction={
+          auth && !authUser && pinConfigured ? (
+            <button type="button" onClick={() => setShowPinModal(true)} style={{
+              background: "rgba(255,255,255,0.2)", border: "none", color: "white", borderRadius: "8px",
+              padding: "6px 10px", fontSize: "12px", cursor: "pointer", fontWeight: "600",
+            }}>
+              Admin
+            </button>
+          ) : !auth ? (
+            <button type="button" onClick={() => setUserRole("admin")} style={{
+              background: "rgba(255,255,255,0.2)", border: "none", color: "white", borderRadius: "8px",
+              padding: "6px 10px", fontSize: "12px", cursor: "pointer", fontWeight: "600",
+            }}>
+              Admin (dev)
+            </button>
+          ) : null
+        } />
+        <div style={{ padding: "20px" }}>
+          <p style={{ fontSize: "14px", color: theme.textLight, margin: "0 0 16px" }}>{todayLabel}</p>
+          <h3 style={{ fontSize: "15px", fontWeight: "700", color: theme.text, margin: "0 0 12px" }}>Your jobs</h3>
+          {activeJobs.length > 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              {activeJobs.map((j) => {
+                const customer = customers.find((c) => c.id === j.customerId);
+                return (
+                  <Card key={j.id} onClick={() => nav("jobs", "detail", j)} style={{ padding: "16px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div>
+                        <div style={{ fontWeight: "700", fontSize: "16px" }}>{j.customerName}</div>
+                        <div style={{ fontSize: "13px", color: theme.textLight, marginTop: "4px" }}>
+                          {j.blades.map((b) => b.size).join(", ")} · ${j.price}
+                        </div>
+                        {j.scheduledDate && (
+                          <div style={{ fontSize: "12px", color: theme.primaryLight, marginTop: "4px" }}>{formatDate(j.scheduledDate)}</div>
+                        )}
+                        {customer?.address && (
+                          <div style={{ fontSize: "12px", color: theme.textLight, marginTop: "4px" }}>📍 {customer.address}</div>
+                        )}
+                      </div>
+                      <StatusBadge status={j.status} />
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          ) : (
+            <p style={{ fontSize: "14px", color: theme.textLight }}>No jobs scheduled for today.</p>
           )}
         </div>
       </div>
@@ -1233,7 +1428,7 @@ export default function WiperBladeApp() {
   }
 
   // ─── JOB DETAIL ───
-  function JobDetailView({ job }) {
+  function JobDetailView({ job, isEmployee }) {
     if (!job) return null;
     const [schedDate, setSchedDate] = useState(job.scheduledDate || "");
     const [emailSent, setEmailSent] = useState(false);
@@ -1282,7 +1477,7 @@ export default function WiperBladeApp() {
       <div>
         <TopBar title="Job Details" onBack={() => nav("jobs")} />
         <div style={{ padding: "20px" }}>
-          <Card style={{ marginBottom: "16px" }} onClick={customer ? () => nav("customers", "detail", customer) : undefined}>
+          <Card style={{ marginBottom: "16px" }} onClick={!isEmployee && customer ? () => nav("customers", "detail", customer) : undefined}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: "12px" }}>
               <div>
                 <div style={{ fontWeight: "800", fontSize: "18px" }}>{currentJob.customerName}</div>
@@ -1377,9 +1572,9 @@ export default function WiperBladeApp() {
                   width: "100px", padding: "8px 12px", border: `2px solid ${theme.border}`,
                   borderRadius: "10px", fontSize: "20px", fontWeight: "700",
                   fontFamily: "'DM Sans', sans-serif", outline: "none",
-                  background: currentJob.status === "completed" ? "#F5F7FA" : "white",
+                  background: (currentJob.status === "completed" || isEmployee) ? "#F5F7FA" : "white",
                 }}
-                disabled={currentJob.status === "completed"}
+                disabled={currentJob.status === "completed" || isEmployee}
               />
             </div>
           </Card>
@@ -1389,12 +1584,14 @@ export default function WiperBladeApp() {
               <Card style={{ marginBottom: "16px" }}>
                 <div style={{ fontSize: "13px", fontWeight: "700", color: theme.textLight, marginBottom: "10px", letterSpacing: "0.5px", textTransform: "uppercase" }}>Schedule Install Date *</div>
                 <input type="date" value={schedDate} onChange={e => setSchedDate(e.target.value)}
+                  disabled={isEmployee}
                   style={{
                     width: "100%", padding: "12px", border: `2px solid ${theme.border}`,
                     borderRadius: "10px", fontSize: "15px", fontFamily: "'DM Sans', sans-serif",
                     outline: "none", boxSizing: "border-box",
+                    background: isEmployee ? "#F5F7FA" : "white",
                   }} />
-                {schedDate && currentJob.status !== "scheduled" && (
+                {schedDate && currentJob.status !== "scheduled" && !isEmployee && (
                   <button onClick={scheduleJob} style={{
                     ...baseBtn, width: "100%", marginTop: "12px",
                     background: theme.primaryLight, color: "white",
@@ -1437,6 +1634,168 @@ export default function WiperBladeApp() {
     );
   }
 
+  // ─── BLOCK SURVEY (research) ───
+  function BlockSurveyView() {
+    const [surveyVehicles, setSurveyVehicles] = useState([]);
+    const [surveyName, setSurveyName] = useState("");
+    const [surveyPhotoIdentifying, setSurveyPhotoIdentifying] = useState(false);
+    const [showAddForm, setShowAddForm] = useState(false);
+    const [addMake, setAddMake] = useState("");
+    const [addModel, setAddModel] = useState("");
+
+    const addVehicleToSurvey = (make, model) => {
+      const wiperSizes = lookupWiperSizes(make, model);
+      setSurveyVehicles((prev) => [...prev, { make, model, wiperSizes }]);
+      setAddMake("");
+      setAddModel("");
+      setShowAddForm(false);
+    };
+
+    const removeVehicleFromSurvey = (idx) => {
+      setSurveyVehicles((prev) => prev.filter((_, i) => i !== idx));
+    };
+
+    const handleSurveyPhotoCapture = () => {
+      setSurveyPhotoIdentifying(true);
+      setTimeout(() => {
+        const randomCars = [
+          { make: "Toyota", model: "Camry" },
+          { make: "Honda", model: "CR-V" },
+          { make: "Ford", model: "F-150" },
+          { make: "Chevrolet", model: "Equinox" },
+        ];
+        const car = randomCars[Math.floor(Math.random() * randomCars.length)];
+        const wiperSizes = lookupWiperSizes(car.make, car.model);
+        setSurveyVehicles((prev) => [...prev, { make: car.make, model: car.model, wiperSizes }]);
+        setSurveyPhotoIdentifying(false);
+      }, 2000);
+    };
+
+    const bladesNeededForSurvey = {};
+    surveyVehicles.forEach((v) => {
+      if (!v.wiperSizes) return;
+      if (v.wiperSizes.driver) bladesNeededForSurvey[v.wiperSizes.driver] = (bladesNeededForSurvey[v.wiperSizes.driver] || 0) + 1;
+      if (v.wiperSizes.passenger) bladesNeededForSurvey[v.wiperSizes.passenger] = (bladesNeededForSurvey[v.wiperSizes.passenger] || 0) + 1;
+      if (v.wiperSizes.rear) bladesNeededForSurvey[v.wiperSizes.rear] = (bladesNeededForSurvey[v.wiperSizes.rear] || 0) + 1;
+    });
+
+    return (
+      <div>
+        <TopBar title="Block survey" onBack={() => nav("inventory")} />
+        <div style={{ padding: "16px 20px" }}>
+          <Input label="Survey name (optional)" placeholder="e.g. Oak St block" value={surveyName} onChange={(e) => setSurveyName(e.target.value)} />
+
+          <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
+            <button type="button" onClick={() => setShowAddForm((v) => !v)} style={{
+              ...baseBtn, padding: "10px 16px", fontSize: "14px",
+              background: "#E8F5E9", color: "#2E7D32", border: "1px solid #C8E6C9",
+            }}>
+              {showAddForm ? "Cancel" : "+ Add vehicle"}
+            </button>
+            <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleSurveyPhotoCapture(); }} disabled={surveyPhotoIdentifying} style={{
+              ...baseBtn, padding: "10px 16px", fontSize: "14px",
+              background: "#E3F2FD", color: theme.primary,
+            }}>
+              <Icons.Camera /> {surveyPhotoIdentifying ? "Identifying..." : "Add from photo"}
+            </button>
+          </div>
+
+          {showAddForm && (
+            <Card style={{ marginBottom: "16px", background: "#F5F7FA" }}>
+              <div style={{ fontSize: "14px", fontWeight: "700", marginBottom: "12px" }}>Add vehicle</div>
+              <Select label="Make" options={MAKES} placeholder="Select make" value={addMake} onChange={(e) => setAddMake(e.target.value)} />
+              <Input label="Model" placeholder="e.g. Camry, CR-V, F-150" value={addModel} onChange={(e) => setAddModel(e.target.value)} />
+              {addMake && (addModel?.length >= 1 || getModelSuggestions(addMake, "").length > 0) && (
+                <div style={{ marginTop: "-8px", marginBottom: "12px" }}>
+                  <div style={{ fontSize: "12px", fontWeight: "600", color: theme.textLight, marginBottom: "6px" }}>Suggestions</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                    {getModelSuggestions(addMake, addModel)
+                      .filter((m) => m !== addModel)
+                      .map((modelName) => (
+                        <button key={modelName} type="button" onClick={() => addVehicleToSurvey(addMake, modelName)} style={{
+                          padding: "6px 12px", borderRadius: "8px", border: `1px solid ${theme.border}`,
+                          background: "#E3F2FD", color: theme.primary, fontSize: "12px", fontWeight: "600",
+                          cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+                        }}>
+                          {modelName}
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              )}
+              <button type="button" onClick={() => addMake && addModel && addVehicleToSurvey(addMake, addModel)} disabled={!addMake || !addModel} style={{
+                ...baseBtn, width: "100%", padding: "10px", fontSize: "14px",
+                background: addMake && addModel ? theme.primary : theme.border, color: "white",
+              }}>
+                Add to survey
+              </button>
+            </Card>
+          )}
+
+          {surveyVehicles.length > 0 && (
+            <>
+              <h3 style={{ fontSize: "15px", fontWeight: "700", margin: "0 0 12px" }}>Vehicles in survey ({surveyVehicles.length})</h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "20px" }}>
+                {surveyVehicles.map((v, idx) => (
+                  <Card key={idx} style={{ padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <div style={{ fontWeight: "700", fontSize: "14px" }}>{v.make} {v.model}</div>
+                      {v.wiperSizes ? (
+                        <div style={{ fontSize: "12px", color: theme.textLight, marginTop: "4px" }}>
+                          {v.wiperSizes.driver && <span>{v.wiperSizes.driver}</span>}
+                          {v.wiperSizes.passenger && <span> / {v.wiperSizes.passenger}</span>}
+                          {v.wiperSizes.rear && <span> / {v.wiperSizes.rear}</span>}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: "12px", color: theme.warning, marginTop: "4px" }}>Sizes not in database</div>
+                      )}
+                    </div>
+                    <button type="button" onClick={() => removeVehicleFromSurvey(idx)} style={{
+                      background: "#FFEBEE", border: "none", borderRadius: "8px", padding: "8px", cursor: "pointer", color: "#C62828", display: "flex",
+                    }}>
+                      <Icons.Trash />
+                    </button>
+                  </Card>
+                ))}
+              </div>
+            </>
+          )}
+
+          {Object.keys(bladesNeededForSurvey).length > 0 && (
+            <div style={{ marginTop: "8px" }}>
+              <h3 style={{ fontSize: "15px", fontWeight: "700", margin: "0 0 12px" }}>Suggested blades for this survey</h3>
+              <Card style={{ background: "#FFF8E1" }}>
+                {Object.entries(bladesNeededForSurvey).sort((a, b) => parseInt(a[0]) - parseInt(b[0])).map(([size, needed]) => {
+                  const have = inventory[size] || 0;
+                  const toBuy = Math.max(0, needed - have);
+                  return (
+                    <div key={size} style={{
+                      display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0",
+                      borderBottom: "1px solid #FFE082", fontSize: "14px",
+                    }}>
+                      <span style={{ fontWeight: "600" }}>{size}</span>
+                      <div style={{ textAlign: "right" }}>
+                        <span style={{ color: theme.textLight }}>× {needed}</span>
+                        {have > 0 && <span style={{ marginLeft: "8px", color: "#2E7D32" }}>— {have} in stock</span>}
+                        {toBuy > 0 && <div style={{ fontWeight: "700", color: "#E65100", marginTop: "2px" }}>Consider buying: {toBuy}</div>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </Card>
+            </div>
+          )}
+
+          {surveyVehicles.length === 0 && !showAddForm && (
+            <p style={{ fontSize: "14px", color: theme.textLight, marginTop: "12px" }}>
+              Add vehicles (manually or from photo) to see suggested blade counts for this area.
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   // ─── INVENTORY ───
   function InventoryView() {
     const [editing, setEditing] = useState(null);
@@ -1467,6 +1826,14 @@ export default function WiperBladeApp() {
               <div style={{ fontSize: "14px", opacity: 0.8 }}>Total Blades in Stock</div>
             </div>
           </Card>
+
+          <button type="button" onClick={() => nav("inventory", "survey")} style={{
+            ...baseBtn, width: "100%", marginBottom: "20px",
+            background: "#E3F2FD", color: theme.primary, border: `2px solid ${theme.primaryLight}`,
+            padding: "14px", fontSize: "15px",
+          }}>
+            <Icons.Camera /> Block survey — estimate blades for an area
+          </button>
 
           <div style={{ display: "grid", gap: "10px" }}>
             {sizes.map(size => {
@@ -1696,13 +2063,27 @@ export default function WiperBladeApp() {
     if (view === "customers" && subView === "edit") return <EditCustomerView />;
     if (view === "customers" && subView === "detail") return <CustomerDetailView customer={selectedItem} />;
     if (view === "customers") return <CustomerListView />;
-    if (view === "jobs" && subView === "detail") return <JobDetailView job={selectedItem} />;
+    if (view === "jobs" && subView === "detail") return <JobDetailView job={selectedItem} isEmployee={userRole === "employee"} />;
     if (view === "jobs") return <JobsListView />;
+    if (view === "inventory" && subView === "survey") return <BlockSurveyView />;
     if (view === "inventory") return <InventoryView />;
     if (view === "calendar") return <CalendarView />;
     if (view === "profits") return <ProfitDashboard jobs={jobsWithBladeCosts} inventory={inventoryForDashboard} expenses={expenses} onExpenseAdded={addExpenseToFirestore} />;
+    if (view === "home" && userRole === "employee") return <EmployeeHomeView />;
+    if (view === "home") return <HomeView />;
     return <HomeView />;
   };
+
+  if (auth && authLoading) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: theme.bg }}>
+        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+        <span style={{ fontFamily: "'DM Sans', sans-serif", color: theme.textLight }}>Loading…</span>
+      </div>
+    );
+  }
+
+  const pinConfigured = typeof process.env.NEXT_PUBLIC_ADMIN_PIN === "string" && process.env.NEXT_PUBLIC_ADMIN_PIN.trim() !== "";
 
   return (
     <div style={{
@@ -1717,10 +2098,24 @@ export default function WiperBladeApp() {
       boxShadow: "0 0 40px rgba(0,0,0,0.08)",
     }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+      {authUser && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px", background: "#E8EAF6", fontSize: "13px", color: theme.text }}>
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{authUser.email}</span>
+          <button type="button" onClick={() => firebaseSignOut(auth)} style={{ ...baseBtn, padding: "6px 12px", fontSize: "12px", background: "transparent", color: theme.primary }}>Sign out</button>
+        </div>
+      )}
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: "70px" }}>
         {renderView()}
       </div>
-      <BottomNav active={view} setView={(v) => nav(v)} />
+      <BottomNav active={view} setView={(v) => nav(v)} userRole={userRole} />
+      <PinModal
+        show={showPinModal}
+        onClose={() => setShowPinModal(false)}
+        onUnlock={() => {
+          sessionStorage.setItem(ADMIN_UNLOCKED_KEY, "true");
+          setUserRole("admin");
+        }}
+      />
     </div>
   );
 }
