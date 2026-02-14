@@ -34,6 +34,13 @@ const formatDate = (d) => {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 };
 
+/** Street-only address for cards (e.g. "7337 Earl Ave NW" from full Nominatim string). */
+const simpleAddress = (addr) => {
+  if (!addr || typeof addr !== "string") return "";
+  const first = addr.split(",")[0].trim();
+  return first || addr;
+};
+
 const STATUS_COLORS = {
   pending: { bg: "#FFF3E0", text: "#E65100", label: "Pending" },
   scheduled: { bg: "#E3F2FD", text: "#1565C0", label: "Scheduled" },
@@ -780,7 +787,7 @@ export default function WiperBladeApp() {
                 <div>
                   <div style={{ fontWeight: "700", fontSize: "15px", color: theme.text }}>{c.name}</div>
                   <div style={{ fontSize: "13px", color: theme.textLight, marginTop: "2px" }}>
-                    {c.address || c.phone} · {c.vehicles.length} vehicle{c.vehicles.length !== 1 ? "s" : ""}
+                    {(c.address ? simpleAddress(c.address) : c.phone)} · {c.vehicles.length} vehicle{c.vehicles.length !== 1 ? "s" : ""}
                   </div>
                 </div>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={theme.textLight} strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
