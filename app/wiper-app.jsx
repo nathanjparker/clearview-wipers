@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, createContext, useContext } from "react";
 import {
   collection,
   doc,
@@ -146,8 +146,8 @@ const Icons = {
   Chart: () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>,
 };
 
-// ─── Styles ───
-const theme = {
+// ─── Themes ───
+const themeLight = {
   primary: "#0D47A1",
   primaryLight: "#1976D2",
   primaryDark: "#0A3680",
@@ -162,6 +162,24 @@ const theme = {
   radius: "14px",
   shadow: "0 2px 12px rgba(0,0,0,0.06)",
 };
+
+const themeDark = {
+  primary: "#42A5F5",
+  primaryLight: "#64B5F6",
+  primaryDark: "#1E88E5",
+  accent: "#26C6DA",
+  success: "#66BB6A",
+  warning: "#FFA726",
+  bg: "#1A1A2E",
+  card: "#2D2D44",
+  text: "#F5F7FA",
+  textLight: "#9CA3AF",
+  border: "#374151",
+  radius: "14px",
+  shadow: "0 2px 16px rgba(0,0,0,0.3)",
+};
+
+const ThemeContext = createContext(themeLight);
 
 const baseBtn = {
   border: "none",
@@ -193,6 +211,7 @@ function StatusBadge({ status }) {
 }
 
 function Input({ label, ...props }) {
+  const theme = useContext(ThemeContext) || themeLight;
   return (
     <div style={{ marginBottom: "16px" }}>
       {label && <label style={{ display: "block", fontSize: "13px", fontWeight: "600", color: theme.textLight, marginBottom: "6px", letterSpacing: "0.3px" }}>{label}</label>}
@@ -200,7 +219,7 @@ function Input({ label, ...props }) {
         width: "100%", padding: "12px 14px", border: `2px solid ${theme.border}`,
         borderRadius: "10px", fontSize: "15px", fontFamily: "'DM Sans', sans-serif",
         outline: "none", transition: "border-color 0.2s", boxSizing: "border-box",
-        background: "#FAFBFC", color: theme.text,
+        background: theme.card, color: theme.text,
         ...(props.style || {}),
       }} onFocus={e => e.target.style.borderColor = theme.primaryLight}
          onBlur={e => e.target.style.borderColor = theme.border} />
@@ -209,13 +228,14 @@ function Input({ label, ...props }) {
 }
 
 function Select({ label, options, placeholder, ...props }) {
+  const theme = useContext(ThemeContext) || themeLight;
   return (
     <div style={{ marginBottom: "16px" }}>
       {label && <label style={{ display: "block", fontSize: "13px", fontWeight: "600", color: theme.textLight, marginBottom: "6px", letterSpacing: "0.3px" }}>{label}</label>}
       <select {...props} style={{
         width: "100%", padding: "12px 14px", border: `2px solid ${theme.border}`,
         borderRadius: "10px", fontSize: "15px", fontFamily: "'DM Sans', sans-serif",
-        outline: "none", background: "#FAFBFC", color: theme.text, cursor: "pointer", boxSizing: "border-box",
+        outline: "none", background: theme.card, color: theme.text, cursor: "pointer", boxSizing: "border-box",
         ...(props.style || {}),
       }}>
         {placeholder && <option value="">{placeholder}</option>}
@@ -226,6 +246,7 @@ function Select({ label, options, placeholder, ...props }) {
 }
 
 function Card({ children, style, onClick }) {
+  const theme = useContext(ThemeContext) || themeLight;
   return (
     <div onClick={onClick} style={{
       background: theme.card, borderRadius: theme.radius, padding: "18px",
@@ -261,6 +282,7 @@ function TopBar({ title, onBack, rightAction }) {
 }
 
 function BottomNav({ active, setView, userRole }) {
+  const theme = useContext(ThemeContext) || themeLight;
   const allTabs = [
     { id: "home", icon: Icons.Home, label: "Home" },
     { id: "calendar", icon: Icons.Calendar, label: "Calendar" },
@@ -272,7 +294,7 @@ function BottomNav({ active, setView, userRole }) {
   const tabs = userRole === "employee" ? allTabs.filter((t) => t.id === "home" || t.id === "jobs") : allTabs;
   return (
     <div style={{
-      display: "flex", justifyContent: "space-around", background: "white",
+      display: "flex", justifyContent: "space-around", background: theme.card,
       borderTop: `1px solid ${theme.border}`, padding: "8px 0 12px",
       position: "sticky", bottom: 0, zIndex: 100,
     }}>
@@ -303,6 +325,7 @@ function BottomNav({ active, setView, userRole }) {
 
 // ─── Login (when Firebase Auth is enabled) ───
 function LoginView() {
+  const theme = useContext(ThemeContext) || themeLight;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -319,16 +342,15 @@ function LoginView() {
       setSubmitting(false);
     }
   };
+  const inputStyle = { padding: "12px 16px", border: `2px solid ${theme.border}`, borderRadius: "10px", fontSize: "15px", fontFamily: "'DM Sans', sans-serif", background: theme.card, color: theme.text };
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px", background: theme.bg }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
       <div style={{ width: "100%", maxWidth: "360px" }}>
         <h1 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "24px", fontWeight: "700", color: theme.text, marginBottom: "24px", textAlign: "center" }}>ClearView Wipers</h1>
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required
-            style={{ padding: "12px 16px", border: `2px solid ${theme.border}`, borderRadius: "10px", fontSize: "15px", fontFamily: "'DM Sans', sans-serif" }} />
-          <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required
-            style={{ padding: "12px 16px", border: `2px solid ${theme.border}`, borderRadius: "10px", fontSize: "15px", fontFamily: "'DM Sans', sans-serif" }} />
+          <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required style={inputStyle} />
+          <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required style={inputStyle} />
           {error && <p style={{ color: theme.warning, fontSize: "14px", margin: 0 }}>{error}</p>}
           <button type="submit" disabled={submitting} style={{ ...baseBtn, padding: "14px", background: theme.primary, color: "white", fontSize: "16px" }}>
             {submitting ? "Signing in…" : "Sign in"}
@@ -341,6 +363,7 @@ function LoginView() {
 
 // ─── PIN modal (unlock admin when not using Firebase login) ───
 function PinModal({ show, onClose, onUnlock }) {
+  const theme = useContext(ThemeContext) || themeLight;
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const handleSubmit = (e) => {
@@ -363,14 +386,14 @@ function PinModal({ show, onClose, onUnlock }) {
   if (!show) return null;
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.4)" }} onClick={handleCancel}>
-      <div style={{ background: "white", borderRadius: "14px", padding: "24px", width: "90%", maxWidth: "320px", boxShadow: theme.shadow }} onClick={e => e.stopPropagation()}>
+      <div style={{ background: theme.card, borderRadius: "14px", padding: "24px", width: "90%", maxWidth: "320px", boxShadow: theme.shadow, border: `1px solid ${theme.border}` }} onClick={e => e.stopPropagation()}>
         <h3 style={{ margin: "0 0 16px", fontSize: "18px", fontWeight: "700", color: theme.text }}>Unlock admin</h3>
         <form onSubmit={handleSubmit}>
           <input type="password" inputMode="numeric" placeholder="PIN" value={pin} onChange={e => setPin(e.target.value)} autoFocus
-            style={{ width: "100%", padding: "12px 16px", border: `2px solid ${theme.border}`, borderRadius: "10px", fontSize: "16px", fontFamily: "'DM Sans', sans-serif", boxSizing: "border-box", background: "#fff", color: theme.text, caretColor: theme.text, WebkitTextFillColor: theme.text }} />
+            style={{ width: "100%", padding: "12px 16px", border: `2px solid ${theme.border}`, borderRadius: "10px", fontSize: "16px", fontFamily: "'DM Sans', sans-serif", boxSizing: "border-box", background: theme.bg, color: theme.text, caretColor: theme.text, WebkitTextFillColor: theme.text }} />
           {error && <p style={{ color: theme.warning, fontSize: "14px", margin: "8px 0 0" }}>{error}</p>}
           <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
-            <button type="button" onClick={handleCancel} style={{ ...baseBtn, flex: 1, padding: "12px", background: "#F0F2F5", color: theme.text }}>Cancel</button>
+            <button type="button" onClick={handleCancel} style={{ ...baseBtn, flex: 1, padding: "12px", background: theme.border, color: theme.text }}>Cancel</button>
             <button type="submit" style={{ ...baseBtn, flex: 1, padding: "12px", background: theme.primary, color: "white" }}>Unlock</button>
           </div>
         </form>
@@ -383,11 +406,22 @@ function PinModal({ show, onClose, onUnlock }) {
 const ADMIN_UNLOCKED_KEY = "adminUnlocked";
 
 export default function WiperBladeApp() {
+  const [isDark, setIsDark] = useState(false);
   const [view, setView] = useState("home");
   const [userRole, setUserRole] = useState("employee"); // Same on server and client to avoid hydration mismatch; updated in useEffect from sessionStorage/Firestore or !auth
   const [authUser, setAuthUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(!!auth);
   const [showPinModal, setShowPinModal] = useState(false);
+
+  useEffect(() => {
+    const m = window.matchMedia("(prefers-color-scheme: dark)");
+    setIsDark(m.matches);
+    const listener = (e) => setIsDark(e.matches);
+    m.addEventListener("change", listener);
+    return () => m.removeEventListener("change", listener);
+  }, []);
+
+  const theme = isDark ? themeDark : themeLight;
   const [customers, setCustomers] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [inventory, setInventory] = useState({});
@@ -532,6 +566,7 @@ export default function WiperBladeApp() {
 
   // ─── HOME ───
   function HomeView() {
+    const theme = useContext(ThemeContext) || themeLight;
     const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
     return (
       <div>
@@ -635,6 +670,7 @@ export default function WiperBladeApp() {
 
   // ─── EMPLOYEE HOME (simplified Today) ───
   function EmployeeHomeView() {
+    const theme = useContext(ThemeContext) || themeLight;
     const today = new Date();
     const todayStr = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
     const todayLabel = today.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
@@ -689,6 +725,7 @@ export default function WiperBladeApp() {
 
   // ─── CUSTOMER LIST ───
   function CustomerListView() {
+    const theme = useContext(ThemeContext) || themeLight;
     const [search, setSearch] = useState("");
     const filtered = customers.filter(c =>
       c.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -705,7 +742,7 @@ export default function WiperBladeApp() {
               style={{
                 width: "100%", padding: "12px 12px 12px 40px", border: `2px solid ${theme.border}`,
                 borderRadius: "12px", fontSize: "15px", fontFamily: "'DM Sans', sans-serif",
-                outline: "none", boxSizing: "border-box", background: "#FAFBFC",
+                outline: "none", boxSizing: "border-box", background: theme.card, color: theme.text,
               }} />
           </div>
 
@@ -740,6 +777,7 @@ export default function WiperBladeApp() {
 
   // ─── NEW CUSTOMER ───
   function NewCustomerView() {
+    const theme = useContext(ThemeContext) || themeLight;
     const [form, setForm] = useState({ name: "", phone: "", email: "", address: "" });
     const [vehicles, setVehicles] = useState([{ make: "", model: "", year: "", wiperSizes: null }]);
     const [step, setStep] = useState(1);
@@ -968,6 +1006,7 @@ export default function WiperBladeApp() {
 
   // ─── EDIT CUSTOMER ───
   function EditCustomerView() {
+    const theme = useContext(ThemeContext) || themeLight;
     const customer = selectedItem;
     if (!customer) return null;
     const [form, setForm] = useState({
@@ -1202,6 +1241,7 @@ export default function WiperBladeApp() {
 
   // ─── CUSTOMER DETAIL ───
   function CustomerDetailView({ customer }) {
+    const theme = useContext(ThemeContext) || themeLight;
     if (!customer) return null;
     const customerJobs = jobs.filter(j => j.customerId === customer.id);
     const [mapLoading, setMapLoading] = useState(false);
@@ -1361,6 +1401,7 @@ export default function WiperBladeApp() {
 
   // ─── JOBS LIST ───
   function JobsListView() {
+    const theme = useContext(ThemeContext) || themeLight;
     const [filter, setFilter] = useState("all");
     const filtered = filter === "all" ? jobs : jobs.filter(j => j.status === filter);
     return (
@@ -1422,6 +1463,7 @@ export default function WiperBladeApp() {
 
   // ─── JOB DETAIL ───
   function JobDetailView({ job, isEmployee }) {
+    const theme = useContext(ThemeContext) || themeLight;
     if (!job) return null;
     const [schedDate, setSchedDate] = useState(job.scheduledDate || "");
     const [emailSent, setEmailSent] = useState(false);
@@ -1565,7 +1607,8 @@ export default function WiperBladeApp() {
                   width: "100px", padding: "8px 12px", border: `2px solid ${theme.border}`,
                   borderRadius: "10px", fontSize: "20px", fontWeight: "700",
                   fontFamily: "'DM Sans', sans-serif", outline: "none",
-                  background: (currentJob.status === "completed" || isEmployee) ? "#F5F7FA" : "white",
+                  background: (currentJob.status === "completed" || isEmployee) ? theme.bg : theme.card,
+                  color: theme.text,
                 }}
                 disabled={currentJob.status === "completed" || isEmployee}
               />
@@ -1582,7 +1625,8 @@ export default function WiperBladeApp() {
                     width: "100%", padding: "12px", border: `2px solid ${theme.border}`,
                     borderRadius: "10px", fontSize: "15px", fontFamily: "'DM Sans', sans-serif",
                     outline: "none", boxSizing: "border-box",
-                    background: isEmployee ? "#F5F7FA" : "white",
+                    background: isEmployee ? theme.bg : theme.card,
+                    color: theme.text,
                   }} />
                 {schedDate && currentJob.status !== "scheduled" && !isEmployee && (
                   <button onClick={scheduleJob} style={{
@@ -1629,6 +1673,7 @@ export default function WiperBladeApp() {
 
   // ─── BLOCK SURVEY (research) ───
   function BlockSurveyView() {
+    const theme = useContext(ThemeContext) || themeLight;
     const [surveyVehicles, setSurveyVehicles] = useState([]);
     const [surveyName, setSurveyName] = useState("");
     const [surveyPhotoIdentifying, setSurveyPhotoIdentifying] = useState(false);
@@ -1791,6 +1836,7 @@ export default function WiperBladeApp() {
 
   // ─── INVENTORY ───
   function InventoryView() {
+    const theme = useContext(ThemeContext) || themeLight;
     const [editing, setEditing] = useState(null);
     const [editVal, setEditVal] = useState("");
 
@@ -1922,6 +1968,7 @@ export default function WiperBladeApp() {
 
   // ─── CALENDAR ───
   function CalendarView() {
+    const theme = useContext(ThemeContext) || themeLight;
     const [currentMonth, setCurrentMonth] = useState(() => {
       const d = new Date();
       return new Date(d.getFullYear(), d.getMonth(), 1);
@@ -2079,20 +2126,23 @@ export default function WiperBladeApp() {
   const pinConfigured = typeof process.env.NEXT_PUBLIC_ADMIN_PIN === "string" && process.env.NEXT_PUBLIC_ADMIN_PIN.trim() !== "";
 
   return (
+    <ThemeContext.Provider value={theme}>
     <div style={{
       fontFamily: "'DM Sans', sans-serif",
       maxWidth: "480px",
       margin: "0 auto",
       background: theme.bg,
+      color: theme.text,
       minHeight: "100vh",
       display: "flex",
       flexDirection: "column",
       position: "relative",
-      boxShadow: "0 0 40px rgba(0,0,0,0.08)",
+      boxShadow: isDark ? "0 0 40px rgba(0,0,0,0.2)" : "0 0 40px rgba(0,0,0,0.08)",
+      colorScheme: isDark ? "dark" : "light",
     }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
       {authUser && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px", background: "#E8EAF6", fontSize: "13px", color: theme.text }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px", background: theme.border, fontSize: "13px", color: theme.text }}>
           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{authUser.email}</span>
           <button type="button" onClick={() => firebaseSignOut(auth)} style={{ ...baseBtn, padding: "6px 12px", fontSize: "12px", background: "transparent", color: theme.primary }}>Sign out</button>
         </div>
@@ -2110,5 +2160,6 @@ export default function WiperBladeApp() {
         }}
       />
     </div>
+    </ThemeContext.Provider>
   );
 }
