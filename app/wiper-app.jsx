@@ -346,7 +346,7 @@ function PinModal({ show, onClose, onUnlock }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     setError("");
-    const configured = (process.env.NEXT_PUBLIC_ADMIN_PIN || "").trim();
+    const configured = (process.env.NEXT_PUBLIC_ADMIN_PIN || "1313").trim();
     if (pin.trim() === configured) {
       onUnlock();
       onClose();
@@ -397,11 +397,11 @@ export default function WiperBladeApp() {
   const [selectedItem, setSelectedItem] = useState(null);
   const [photoIdentifying, setPhotoIdentifying] = useState(false);
 
-  // Auth: when signed in, load role from Firestore users/{uid}; when no auth use stub admin; when auth but no user use sessionStorage
+  // Auth: when signed in, load role from Firestore users/{uid}; when no auth restore from sessionStorage or employee; when auth but no user use sessionStorage
   useEffect(() => {
     if (!auth) {
       setAuthLoading(false);
-      setUserRole("admin");
+      setUserRole(typeof sessionStorage !== "undefined" && sessionStorage.getItem(ADMIN_UNLOCKED_KEY) === "true" ? "admin" : "employee");
       return;
     }
     const unsub = onAuthStateChanged(auth, async (user) => {
@@ -617,13 +617,13 @@ export default function WiperBladeApp() {
 
           <div style={{ marginTop: "24px", textAlign: "center" }}>
             <button type="button" onClick={() => {
-              if (auth && !authUser) sessionStorage.removeItem(ADMIN_UNLOCKED_KEY);
+              if (typeof sessionStorage !== "undefined") sessionStorage.removeItem(ADMIN_UNLOCKED_KEY);
               setUserRole("employee");
             }} style={{
               background: "none", border: "none", cursor: "pointer", fontSize: "12px", color: theme.textLight,
               textDecoration: "underline",
             }}>
-              {auth && !authUser ? "Lock" : "View as Employee (dev)"}
+              Lock
             </button>
           </div>
         </div>
@@ -642,21 +642,12 @@ export default function WiperBladeApp() {
     return (
       <div>
         <TopBar title="Today" onBack={null} rightAction={
-          auth && !authUser && pinConfigured ? (
-            <button type="button" onClick={() => setShowPinModal(true)} style={{
-              background: "rgba(255,255,255,0.2)", border: "none", color: "white", borderRadius: "8px",
-              padding: "6px 10px", fontSize: "12px", cursor: "pointer", fontWeight: "600",
-            }}>
-              Admin
-            </button>
-          ) : !auth ? (
-            <button type="button" onClick={() => setUserRole("admin")} style={{
-              background: "rgba(255,255,255,0.2)", border: "none", color: "white", borderRadius: "8px",
-              padding: "6px 10px", fontSize: "12px", cursor: "pointer", fontWeight: "600",
-            }}>
-              Admin (dev)
-            </button>
-          ) : null
+          <button type="button" onClick={() => setShowPinModal(true)} style={{
+            background: "rgba(255,255,255,0.2)", border: "none", color: "white", borderRadius: "8px",
+            padding: "6px 10px", fontSize: "12px", cursor: "pointer", fontWeight: "600",
+          }}>
+            Admin
+          </button>
         } />
         <div style={{ padding: "20px" }}>
           <p style={{ fontSize: "14px", color: theme.textLight, margin: "0 0 16px" }}>{todayLabel}</p>
