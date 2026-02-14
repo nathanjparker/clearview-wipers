@@ -248,7 +248,7 @@ function TopBar({ title, onBack, rightAction }) {
       color: "white", position: "sticky", top: 0, zIndex: 100,
     }}>
       {onBack && (
-        <button onClick={onBack} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "white", borderRadius: "10px", padding: "8px", cursor: "pointer", display: "flex" }}>
+        <button type="button" onClick={onBack} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "white", borderRadius: "10px", padding: "8px", cursor: "pointer", display: "flex" }}>
           <Icons.Back />
         </button>
       )}
@@ -688,14 +688,14 @@ export default function WiperBladeApp() {
                       <span style={{ fontWeight: "700", fontSize: "14px" }}>Vehicle {idx + 1}</span>
                     </div>
                     <div style={{ display: "flex", gap: "8px" }}>
-                      <button onClick={() => handlePhotoCapture(idx)} style={{
+                      <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); handlePhotoCapture(idx); }} style={{
                         ...baseBtn, padding: "8px 12px", fontSize: "12px",
                         background: "#E3F2FD", color: theme.primary,
                       }}>
                         <Icons.Camera /> {photoIdentifying ? "Identifying..." : "Photo ID"}
                       </button>
                       {vehicles.length > 1 && (
-                        <button onClick={() => removeVehicle(idx)} style={{
+                        <button type="button" onClick={() => removeVehicle(idx)} style={{
                           background: "#FFEBEE", border: "none", borderRadius: "8px",
                           padding: "8px", cursor: "pointer", color: "#C62828", display: "flex",
                         }}>
@@ -933,14 +933,14 @@ export default function WiperBladeApp() {
                       <span style={{ fontWeight: "700", fontSize: "14px" }}>Vehicle {idx + 1}</span>
                     </div>
                     <div style={{ display: "flex", gap: "8px" }}>
-                      <button onClick={() => handlePhotoCapture(idx)} style={{
+                      <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); handlePhotoCapture(idx); }} style={{
                         ...baseBtn, padding: "8px 12px", fontSize: "12px",
                         background: "#E3F2FD", color: theme.primary,
                       }}>
                         <Icons.Camera /> {photoIdentifying ? "Identifying..." : "Photo ID"}
                       </button>
                       {vehicles.length > 1 && (
-                        <button onClick={() => removeVehicle(idx)} style={{
+                        <button type="button" onClick={() => removeVehicle(idx)} style={{
                           background: "#FFEBEE", border: "none", borderRadius: "8px",
                           padding: "8px", cursor: "pointer", color: "#C62828", display: "flex",
                         }}>
