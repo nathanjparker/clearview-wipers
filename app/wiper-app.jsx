@@ -1010,7 +1010,6 @@ export default function WiperBladeApp() {
                   <Select label="Year" options={YEARS} placeholder="Select year" value={v.year} onChange={e => updateVehicle(idx, "year", e.target.value)} />
                   <Select label="Make" options={MAKES} placeholder="Select make" value={v.make} onChange={e => updateVehicle(idx, "make", e.target.value)} />
                   <Input label="Model" placeholder="e.g. Camry, CR-V, F-150" value={v.model} onChange={e => updateVehicle(idx, "model", e.target.value)} />
-                  <Input label="Note" placeholder="e.g. Red, in alley, has alarm" value={v.notes ?? ""} onChange={e => updateVehicle(idx, "notes", e.target.value)} />
                   {v.make && (v.model?.length >= 1 || getModelSuggestions(v.make, "").length > 0) && (
                     <div style={{ marginTop: "-8px", marginBottom: "12px" }}>
                       <div style={{ fontSize: "12px", fontWeight: "600", color: theme.textLight, marginBottom: "6px" }}>Suggestions</div>
@@ -1058,6 +1057,7 @@ export default function WiperBladeApp() {
                       </div>
                     </div>
                   )}
+                  <Input label="Note" placeholder="e.g. Red, in alley, has alarm" value={v.notes ?? ""} onChange={e => updateVehicle(idx, "notes", e.target.value)} />
                 </Card>
               ))}
 
@@ -1290,7 +1290,6 @@ export default function WiperBladeApp() {
                   <Select label="Year" options={YEARS} placeholder="Select year" value={v.year} onChange={e => updateVehicle(idx, "year", e.target.value)} />
                   <Select label="Make" options={MAKES} placeholder="Select make" value={v.make} onChange={e => updateVehicle(idx, "make", e.target.value)} />
                   <Input label="Model" placeholder="e.g. Camry, CR-V, F-150" value={v.model} onChange={e => updateVehicle(idx, "model", e.target.value)} />
-                  <Input label="Note" placeholder="e.g. Red, in alley, has alarm" value={v.notes ?? ""} onChange={e => updateVehicle(idx, "notes", e.target.value)} />
                   {v.make && (v.model?.length >= 1 || getModelSuggestions(v.make, "").length > 0) && (
                     <div style={{ marginTop: "-8px", marginBottom: "12px" }}>
                       <div style={{ fontSize: "12px", fontWeight: "600", color: theme.textLight, marginBottom: "6px" }}>Suggestions</div>
@@ -1329,6 +1328,7 @@ export default function WiperBladeApp() {
                       <div style={{ fontSize: "13px", fontWeight: "600", color: "#E65100" }}>⚠ Sizes not in database — you can look them up manually</div>
                     </div>
                   )}
+                  <Input label="Note" placeholder="e.g. Red, in alley, has alarm" value={v.notes ?? ""} onChange={e => updateVehicle(idx, "notes", e.target.value)} />
                 </Card>
               ))}
               <button onClick={addVehicle} style={{
@@ -1519,6 +1519,29 @@ export default function WiperBladeApp() {
                   <Select label="Year" options={YEARS} placeholder="Select year" value={editVehicle.year} onChange={e => setEditVehicle(prev => ({ ...prev, year: e.target.value }))} />
                   <Select label="Make" options={MAKES} placeholder="Select make" value={editVehicle.make} onChange={e => setEditVehicle(prev => ({ ...prev, make: e.target.value }))} />
                   <Input label="Model" placeholder="e.g. Camry, CR-V, F-150" value={editVehicle.model} onChange={e => setEditVehicle(prev => ({ ...prev, model: e.target.value }))} />
+                  {editVehicle.make && (editVehicle.model?.length >= 1 || getModelSuggestions(editVehicle.make, "").length > 0) && (
+                    <div style={{ marginTop: "-8px", marginBottom: "12px" }}>
+                      <div style={{ fontSize: "12px", fontWeight: "600", color: theme.textLight, marginBottom: "6px" }}>Suggestions</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                        {getModelSuggestions(editVehicle.make, editVehicle.model)
+                          .filter((m) => m !== editVehicle.model)
+                          .map((modelName) => (
+                            <button
+                              key={modelName}
+                              type="button"
+                              onClick={() => setEditVehicle(prev => ({ ...prev, model: modelName }))}
+                              style={{
+                                padding: "6px 12px", borderRadius: "8px", border: `1px solid ${theme.border}`,
+                                background: "#E3F2FD", color: theme.primary, fontSize: "12px", fontWeight: "600",
+                                cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+                              }}
+                            >
+                              {modelName}
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+                  )}
                   {editVehicle.make && editVehicle.model && (
                     <div style={{ marginTop: "8px", fontSize: "13px", color: theme.textLight }}>
                       {lookupWiperSizes(editVehicle.make, editVehicle.model) ? (
