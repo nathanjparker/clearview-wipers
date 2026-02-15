@@ -8,6 +8,7 @@ import {
   getDocs,
   setDoc,
   updateDoc,
+  deleteDoc,
   onSnapshot,
   query,
   where,
@@ -525,6 +526,17 @@ export default function WiperBladeApp() {
     if (db) setDoc(doc(db, "customers", updatedCustomer.id), updatedCustomer);
     else setCustomers((prev) => prev.map((c) => (c.id === updatedCustomer.id ? updatedCustomer : c)));
   }, []);
+  const deleteCustomer = useCallback(async (customer) => {
+    if (db) {
+      await deleteDoc(doc(db, "customers", customer.id));
+      const q = query(collection(db, "jobs"), where("customerId", "==", customer.id));
+      const snap = await getDocs(q);
+      for (const d of snap.docs) await deleteDoc(doc(db, "jobs", d.id));
+    } else {
+      setCustomers((prev) => prev.filter((c) => c.id !== customer.id));
+      setJobs((prev) => prev.filter((j) => j.customerId !== customer.id));
+    }
+  }, []);
   const updateJobsCustomerName = useCallback(async (customerId, customerName) => {
     if (db) {
       const q = query(collection(db, "jobs"), where("customerId", "==", customerId));
@@ -541,6 +553,10 @@ export default function WiperBladeApp() {
   const updateJob = useCallback((updatedJob) => {
     if (db) setDoc(doc(db, "jobs", updatedJob.id), updatedJob);
     else setJobs((prev) => prev.map((j) => (j.id === updatedJob.id ? updatedJob : j)));
+  }, []);
+  const deleteJob = useCallback((job) => {
+    if (db) deleteDoc(doc(db, "jobs", job.id));
+    else setJobs((prev) => prev.filter((j) => j.id !== job.id));
   }, []);
   const writeInventory = useCallback((counts) => {
     if (db) setDoc(doc(db, "data", "inventory"), { counts });
@@ -657,7 +673,7 @@ export default function WiperBladeApp() {
                         <div style={{ fontWeight: "600", fontSize: "14px" }}>{j.customerName}</div>
                         <div style={{ fontSize: "12px", color: theme.textLight }}>{formatDate(j.scheduledDate)} · {j.blades.length} blades · ${j.price}</div>
                         {customer?.address && (
-                          <div style={{ fontSize: "11px", color: theme.textLight, marginTop: "4px" }}>📍 {customer.address}</div>
+                          <div style={{ fontSize: "11px", color: theme.textLight, marginTop: "4px" }}>📍 {simpleAddress(customer.address)}</div>
                         )}
                       </div>
                       <StatusBadge status={j.status} />
@@ -729,13 +745,13 @@ export default function WiperBladeApp() {
                       <div>
                         <div style={{ fontWeight: "700", fontSize: "16px" }}>{j.customerName}</div>
                         <div style={{ fontSize: "13px", color: theme.textLight, marginTop: "4px" }}>
-                          {j.blades.map((b) => b.size).join(", ")} · ${j.price}
+                          {j.blades.length ? j.blades.map((b) => b.size).join(", ") : "TBD"} · ${j.price}
                         </div>
                         {j.scheduledDate && (
                           <div style={{ fontSize: "12px", color: theme.primaryLight, marginTop: "4px" }}>{formatDate(j.scheduledDate)}</div>
                         )}
                         {customer?.address && (
-                          <div style={{ fontSize: "12px", color: theme.textLight, marginTop: "4px" }}>📍 {customer.address}</div>
+                          <div style={{ fontSize: "12px", color: theme.textLight, marginTop: "4px" }}>📍 {simpleAddress(customer.address)}</div>
                         )}
                       </div>
                       <StatusBadge status={j.status} />
@@ -807,7 +823,7 @@ export default function WiperBladeApp() {
   // ─── NEW CUSTOMER ───
   function NewCustomerView() {
     const theme = useContext(ThemeContext) || themeLight;
-    const [form, setForm] = useState({ name: "", phone: "", email: "", address: "" });
+    const [form, setForm] = useState({ name: "", phone: "", email: "", address: "", notes: "" });
     const [vehicles, setVehicles] = useState([{ make: "", model: "", year: "", wiperSizes: null }]);
     const [step, setStep] = useState(1);
     const [verifyLoading, setVerifyLoading] = useState(false);
@@ -942,6 +958,12 @@ export default function WiperBladeApp() {
                   </div>
                 )}
               </div>
+              <div style={{ marginBottom: "16px" }}>
+                <label style={{ display: "block", fontSize: "13px", fontWeight: "600", color: theme.text, marginBottom: "6px" }}>Notes (optional)</label>
+                <textarea placeholder="e.g. Gate code, preferred time, special requests" value={form.notes} onChange={e => setForm({...form, notes: e.target.value})}
+                  rows={3}
+                  style={{ width: "100%", padding: "12px", border: `2px solid ${theme.border}`, borderRadius: "10px", fontSize: "14px", fontFamily: "'DM Sans', sans-serif", resize: "vertical", outline: "none", boxSizing: "border-box", background: theme.card, color: theme.text }} />
+              </div>
               {(() => {
                 const allRequired = [form.name, form.phone, form.email, form.address].every(f => (f || "").trim().length > 0);
                 return (
@@ -1067,6 +1089,7 @@ export default function WiperBladeApp() {
       phone: customer.phone || "",
       email: customer.email || "",
       address: customer.address || "",
+      notes: customer.notes || "",
     });
     const [vehicles, setVehicles] = useState(
       (customer.vehicles && customer.vehicles.length > 0)
@@ -1162,6 +1185,12 @@ export default function WiperBladeApp() {
                     ))}
                   </div>
                 )}
+              </div>
+              <div style={{ marginBottom: "16px" }}>
+                <label style={{ display: "block", fontSize: "13px", fontWeight: "600", color: theme.text, marginBottom: "6px" }}>Notes (optional)</label>
+                <textarea placeholder="e.g. Gate code, preferred time, special requests" value={form.notes} onChange={e => setForm({...form, notes: e.target.value})}
+                  rows={3}
+                  style={{ width: "100%", padding: "12px", border: `2px solid ${theme.border}`, borderRadius: "10px", fontSize: "14px", fontFamily: "'DM Sans', sans-serif", resize: "vertical", outline: "none", boxSizing: "border-box", background: theme.card, color: theme.text }} />
               </div>
               <div style={{ marginBottom: "16px" }}>
                 <button
@@ -1327,20 +1356,21 @@ export default function WiperBladeApp() {
 
     const createJob = (vIdx) => {
       const v = customer.vehicles[vIdx];
-      if (!v?.wiperSizes) return;
+      if (!v) return;
       const blades = [];
-      if (v.wiperSizes.driver) blades.push({ size: v.wiperSizes.driver, position: "Driver" });
-      if (v.wiperSizes.passenger) blades.push({ size: v.wiperSizes.passenger, position: "Passenger" });
-      if (v.wiperSizes.rear) blades.push({ size: v.wiperSizes.rear, position: "Rear" });
-
-      const canDoNow = blades.every(b => (inventory[b.size] || 0) > 0);
+      if (v.wiperSizes) {
+        if (v.wiperSizes.driver) blades.push({ size: v.wiperSizes.driver, position: "Driver" });
+        if (v.wiperSizes.passenger) blades.push({ size: v.wiperSizes.passenger, position: "Passenger" });
+        if (v.wiperSizes.rear) blades.push({ size: v.wiperSizes.rear, position: "Rear" });
+      }
+      // Unrecognized vehicles get an empty blade list; user can still schedule and complete (no inventory deduction).
 
       const newJob = {
         id: generateId(),
         customerId: customer.id,
         customerName: customer.name,
         vehicleIndex: vIdx,
-        status: canDoNow ? "pending" : "pending",
+        status: "pending",
         scheduledDate: null,
         blades,
         createdAt: new Date().toISOString(),
@@ -1378,7 +1408,8 @@ export default function WiperBladeApp() {
             <div style={{ fontSize: "13px", color: theme.textLight, lineHeight: "2", paddingRight: "70px" }}>
               {customer.phone && <div>📱 {customer.phone}</div>}
               {customer.email && <div>✉️ {customer.email}</div>}
-              {customer.address && <div>📍 {customer.address}</div>}
+              {customer.address && <div>📍 {simpleAddress(customer.address)}</div>}
+              {customer.notes && <div style={{ marginTop: "8px", paddingTop: "8px", borderTop: `1px solid ${theme.border}` }}><strong style={{ color: theme.text }}>Notes:</strong> {customer.notes}</div>}
             </div>
             {customer.address && (
               <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: `1px solid ${theme.border}` }}>
@@ -1438,12 +1469,21 @@ export default function WiperBladeApp() {
                     </div>
                   )}
                 </div>
-                <button onClick={() => createJob(idx)} style={{
-                  ...baseBtn, padding: "8px 16px", fontSize: "13px",
-                  background: theme.primary, color: "white",
-                }}>
-                  Create Job
-                </button>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <button onClick={() => createJob(idx)} style={{
+                    ...baseBtn, padding: "8px 16px", fontSize: "13px",
+                    background: theme.primary, color: "white",
+                  }}>
+                    Create Job
+                  </button>
+                  {customer.vehicles.length > 1 && (
+                    <button type="button" onClick={() => { if (window.confirm("Remove this vehicle?")) updateCustomer({ ...customer, vehicles: customer.vehicles.filter((_, i) => i !== idx) }); }} style={{
+                      background: "#FFEBEE", border: "none", borderRadius: "8px", padding: "8px", cursor: "pointer", color: "#C62828", display: "flex",
+                    }} title="Remove vehicle">
+                      <Icons.Trash />
+                    </button>
+                  )}
+                </div>
               </div>
             </Card>
           ))}
@@ -1455,7 +1495,7 @@ export default function WiperBladeApp() {
                 <Card key={j.id} onClick={() => nav("jobs", "detail", j)} style={{ marginBottom: "10px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div>
-                      <div style={{ fontSize: "13px", color: theme.textLight }}>{j.blades.map(b => `${b.position} ${b.size}`).join(", ")}</div>
+                      <div style={{ fontSize: "13px", color: theme.textLight }}>{j.blades.length ? j.blades.map(b => `${b.position} ${b.size}`).join(", ") : "Sizes TBD"}</div>
                       <div style={{ fontSize: "12px", color: theme.textLight, marginTop: "2px" }}>${j.price}</div>
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
@@ -1471,6 +1511,19 @@ export default function WiperBladeApp() {
               ))}
             </>
           )}
+
+          <div style={{ marginTop: "28px", paddingTop: "20px", borderTop: `1px solid ${theme.border}` }}>
+            <button type="button" onClick={async () => {
+              if (!window.confirm("Delete this customer and all their jobs? This cannot be undone.")) return;
+              await deleteCustomer(customer);
+              nav("customers");
+            }} style={{
+              ...baseBtn, width: "100%", padding: "12px", fontSize: "14px",
+              background: "transparent", color: "#C62828", border: "1px solid #C62828",
+            }}>
+              <Icons.Trash /> Delete customer
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -1518,7 +1571,7 @@ export default function WiperBladeApp() {
                           <Icons.Calendar /> {formatDate(j.scheduledDate)}
                         </div>
                         {customer?.address && (
-                          <div style={{ fontSize: "11px", color: theme.textLight, marginTop: "2px" }}>📍 {customer.address}</div>
+                          <div style={{ fontSize: "11px", color: theme.textLight, marginTop: "2px" }}>📍 {simpleAddress(customer.address)}</div>
                         )}
                       </>
                     )}
@@ -1548,10 +1601,12 @@ export default function WiperBladeApp() {
     const [mapLoading, setMapLoading] = useState(false);
     const [mapResult, setMapResult] = useState(null);
     const [mapError, setMapError] = useState(null);
+    const [customerNotes, setCustomerNotes] = useState("");
 
     // Refresh job from state
     const currentJob = jobs.find(j => j.id === job.id) || job;
     const customer = customers.find(c => c.id === currentJob.customerId);
+    useEffect(() => setCustomerNotes(customer?.notes || ""), [customer?.id, customer?.notes]);
 
     const scheduleJob = () => {
       if (!schedDate) return;
@@ -1581,7 +1636,7 @@ export default function WiperBladeApp() {
       alert(`📧 Thank you email sent to ${c?.email || "customer"}!\n\nMessage: Thank you for choosing ClearView Wipers! Your new wiper blades have been installed. We recommend replacement every 6-12 months. Reply to schedule your next visit!`);
     };
 
-    const hasBlades = currentJob.blades.every(b => (inventory[b.size] || 0) > 0);
+    const hasBlades = currentJob.blades.length === 0 || currentJob.blades.every(b => (inventory[b.size] || 0) > 0);
     const hasScheduledDate = !!(currentJob.scheduledDate || schedDate?.trim());
     const canComplete = hasBlades && hasScheduledDate;
 
@@ -1598,7 +1653,7 @@ export default function WiperBladeApp() {
                 </div>
                 {customer?.address && (
                   <div style={{ fontSize: "13px", color: theme.textLight, marginTop: "6px", display: "flex", alignItems: "center", gap: "4px" }}>
-                    📍 {customer.address}
+                    📍 {simpleAddress(customer.address)}
                   </div>
                 )}
               </div>
@@ -1651,28 +1706,46 @@ export default function WiperBladeApp() {
             )}
           </Card>
 
+          {customer && !isEmployee && (
+            <Card style={{ marginBottom: "16px" }} onClick={e => e.stopPropagation()}>
+              <div style={{ fontSize: "13px", fontWeight: "700", color: theme.textLight, marginBottom: "10px", letterSpacing: "0.5px", textTransform: "uppercase" }}>Customer notes</div>
+              <textarea placeholder="Gate code, preferred time, special requests…" value={customerNotes} onChange={e => setCustomerNotes(e.target.value)}
+                rows={3}
+                style={{ width: "100%", padding: "12px", border: `2px solid ${theme.border}`, borderRadius: "10px", fontSize: "14px", fontFamily: "'DM Sans', sans-serif", resize: "vertical", outline: "none", boxSizing: "border-box", background: theme.card, color: theme.text, marginBottom: "10px" }} />
+              <button type="button" onClick={() => updateCustomer({ ...customer, notes: customerNotes })} style={{
+                ...baseBtn, padding: "8px 14px", fontSize: "13px", background: theme.primary, color: "white",
+              }}>
+                Save notes
+              </button>
+            </Card>
+          )}
+
           <Card style={{ marginBottom: "16px" }}>
             <div style={{ fontSize: "13px", fontWeight: "700", color: theme.textLight, marginBottom: "10px", letterSpacing: "0.5px", textTransform: "uppercase" }}>Blades Required</div>
-            {currentJob.blades.map((b, i) => {
-              const inStock = inventory[b.size] || 0;
-              return (
-                <div key={i} style={{
-                  display: "flex", justifyContent: "space-between", alignItems: "center",
-                  padding: "10px 0", borderBottom: i < currentJob.blades.length - 1 ? `1px solid ${theme.border}` : "none",
-                }}>
-                  <div>
-                    <span style={{ fontWeight: "600" }}>{b.position}</span>
-                    <span style={{ color: theme.textLight, marginLeft: "8px" }}>{b.size}</span>
-                  </div>
-                  <div style={{
-                    fontSize: "12px", fontWeight: "600",
-                    color: inStock > 0 ? "#2E7D32" : "#C62828",
+            {currentJob.blades.length === 0 ? (
+              <div style={{ padding: "10px 0", color: theme.textLight, fontSize: "13px" }}>Vehicle not in database — sizes TBD. You can still schedule and complete (no inventory deduction).</div>
+            ) : (
+              currentJob.blades.map((b, i) => {
+                const inStock = inventory[b.size] || 0;
+                return (
+                  <div key={i} style={{
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                    padding: "10px 0", borderBottom: i < currentJob.blades.length - 1 ? `1px solid ${theme.border}` : "none",
                   }}>
-                    {inStock > 0 ? `${inStock} in stock ✓` : "OUT OF STOCK ✗"}
+                    <div>
+                      <span style={{ fontWeight: "600" }}>{b.position}</span>
+                      <span style={{ color: theme.textLight, marginLeft: "8px" }}>{b.size}</span>
+                    </div>
+                    <div style={{
+                      fontSize: "12px", fontWeight: "600",
+                      color: inStock > 0 ? "#2E7D32" : "#C62828",
+                    }}>
+                      {inStock > 0 ? `${inStock} in stock ✓` : "OUT OF STOCK ✗"}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </Card>
 
           <Card style={{ marginBottom: "16px" }}>
@@ -1720,8 +1793,16 @@ export default function WiperBladeApp() {
                 background: canComplete ? "linear-gradient(135deg, #2E7D32, #43A047)" : theme.border,
                 color: canComplete ? "white" : theme.textLight,
               }}>
-                <Icons.Check /> {canComplete ? "Complete Job & Deduct Inventory" : !hasScheduledDate ? "Set schedule date to complete" : "Need Blades in Stock to Complete"}
+                <Icons.Check /> {canComplete ? (currentJob.blades.length === 0 ? "Complete Job" : "Complete Job & Deduct Inventory") : !hasScheduledDate ? "Set schedule date to complete" : "Need Blades in Stock to Complete"}
               </button>
+              {!isEmployee && (
+                <button type="button" onClick={() => { if (window.confirm("Cancel this job? This cannot be undone.")) { deleteJob(currentJob); nav("jobs"); } }} style={{
+                  ...baseBtn, width: "100%", marginTop: "12px", padding: "12px",
+                  background: "transparent", color: theme.textLight, border: `1px solid ${theme.border}`,
+                }}>
+                  Cancel job
+                </button>
+              )}
             </>
           )}
 
@@ -2156,7 +2237,7 @@ export default function WiperBladeApp() {
                         {formatDate(j.scheduledDate)} · {j.blades.length} blades · ${j.price}
                       </div>
                       {customer?.address && (
-                        <div style={{ fontSize: "11px", color: theme.textLight, marginTop: "4px" }}>📍 {customer.address}</div>
+                        <div style={{ fontSize: "11px", color: theme.textLight, marginTop: "4px" }}>📍 {simpleAddress(customer.address)}</div>
                       )}
                     </div>
                     <StatusBadge status={j.status} />

@@ -77,6 +77,8 @@ export const WIPER_SIZES_DB = {
   "Ford_Transit Connect": { driver: '26"', passenger: '16"', rear: null },
   "Ford_Focus": { driver: '26"', passenger: '18"', rear: null },
   "Ford_F-150 Lightning": { driver: '22"', passenger: '22"', rear: null },
+  "Ford_Maverick": { driver: '26"', passenger: '16"', rear: null },
+  "Ford_EcoSport": { driver: '26"', passenger: '16"', rear: '12"' },
 
   // Chevrolet
   "Chevrolet_Silverado": { driver: '22"', passenger: '22"', rear: null },
@@ -96,6 +98,7 @@ export const WIPER_SIZES_DB = {
   "Chevrolet_Express": { driver: '22"', passenger: '22"', rear: null },
   "Chevrolet_Trax": { driver: '26"', passenger: '16"', rear: '12"' },
   "Chevrolet_Spark": { driver: '26"', passenger: '14"', rear: null },
+  "Chevrolet_Trailblazer": { driver: '26"', passenger: '16"', rear: '12"' },
 
   // Nissan
   "Nissan_Altima": { driver: '28"', passenger: '17"', rear: null },
@@ -107,6 +110,12 @@ export const WIPER_SIZES_DB = {
   "Nissan_Sentra": { driver: '26"', passenger: '16"', rear: null },
   "Nissan_Leaf": { driver: '26"', passenger: '18"', rear: null },
   "Nissan_Armada": { driver: '26"', passenger: '20"', rear: '12"' },
+  "Nissan_NV": { driver: '26"', passenger: '16"', rear: null },
+  "Nissan_NV200": { driver: '26"', passenger: '16"', rear: null },
+  "Nissan_NV1500": { driver: '26"', passenger: '16"', rear: null },
+  "Nissan_NV2500": { driver: '26"', passenger: '16"', rear: null },
+  "Nissan_NV3500": { driver: '26"', passenger: '16"', rear: null },
+  "Nissan_Kicks": { driver: '26"', passenger: '16"', rear: '12"' },
 
   // Jeep
   "Jeep_Wrangler": { driver: '18"', passenger: '18"', rear: '12"' },
@@ -169,6 +178,10 @@ export const WIPER_SIZES_DB = {
   "Dodge_Charger": { driver: '22"', passenger: '22"', rear: null },
   "Dodge_Challenger": { driver: '22"', passenger: '20"', rear: null },
   "Dodge_Journey": { driver: '26"', passenger: '18"', rear: '12"' },
+  "Dodge_Grand Caravan": { driver: '26"', passenger: '20"', rear: null },
+  "Dodge_Caravan": { driver: '26"', passenger: '20"', rear: null },
+  "Chrysler_Pacifica": { driver: '26"', passenger: '20"', rear: null },
+  "Chrysler_Voyager": { driver: '26"', passenger: '20"', rear: null },
 
   // RAM (often listed separately from Dodge)
   "RAM_1500": { driver: '24"', passenger: '21"', rear: null },
@@ -183,18 +196,32 @@ export const WIPER_SIZES_DB = {
   "Volkswagen_Tiguan": { driver: '26"', passenger: '18"', rear: '12"' },
   "Volkswagen_Atlas": { driver: '26"', passenger: '20"', rear: '12"' },
   "Volkswagen_Golf": { driver: '26"', passenger: '16"', rear: null },
+  "Volkswagen_ID.4": { driver: '26"', passenger: '18"', rear: '12"' },
 
   // BMW
   "BMW_3 Series": { driver: '24"', passenger: '19"', rear: null },
   "BMW_5 Series": { driver: '24"', passenger: '19"', rear: null },
   "BMW_X3": { driver: '26"', passenger: '18"', rear: '14"' },
   "BMW_X5": { driver: '26"', passenger: '20"', rear: '14"' },
+  "BMW_X1": { driver: '26"', passenger: '16"', rear: '12"' },
+  "BMW_X7": { driver: '26"', passenger: '20"', rear: '14"' },
+  "BMW_2 Series": { driver: '26"', passenger: '16"', rear: null },
 
   // Mercedes
   "Mercedes_C-Class": { driver: '22"', passenger: '22"', rear: null },
   "Mercedes_E-Class": { driver: '24"', passenger: '19"', rear: null },
   "Mercedes_GLC": { driver: '26"', passenger: '18"', rear: '14"' },
   "Mercedes_GLE": { driver: '26"', passenger: '20"', rear: '14"' },
+  "Mercedes_Sprinter": { driver: '26"', passenger: '16"', rear: null },
+  "Mercedes_Sprinter 2500": { driver: '26"', passenger: '16"', rear: null },
+  "Mercedes_Sprinter 3500": { driver: '26"', passenger: '16"', rear: null },
+  "Mercedes_Metris": { driver: '26"', passenger: '16"', rear: null },
+  "Mercedes_GLA": { driver: '26"', passenger: '16"', rear: '12"' },
+  "Mercedes_GLB": { driver: '26"', passenger: '16"', rear: '12"' },
+  "Mercedes_GLS": { driver: '26"', passenger: '20"', rear: '14"' },
+  "Mercedes_S-Class": { driver: '26"', passenger: '19"', rear: null },
+  "Mercedes_A-Class": { driver: '26"', passenger: '16"', rear: null },
+  "Mercedes_CLA": { driver: '26"', passenger: '16"', rear: null },
 
   // Audi
   "Audi_A4": { driver: '26"', passenger: '19"', rear: null },
@@ -207,6 +234,7 @@ export const WIPER_SIZES_DB = {
   "Tesla_Model Y": { driver: '26"', passenger: '19"', rear: null },
   "Tesla_Model S": { driver: '26"', passenger: '19"', rear: null },
   "Tesla_Model X": { driver: '26"', passenger: '20"', rear: null },
+  "Tesla_Cybertruck": { driver: '22"', passenger: '22"', rear: null },
 
   // Other
   "Infiniti_Q50": { driver: '26"', passenger: '18"', rear: null },
@@ -220,4 +248,11 @@ export const WIPER_SIZES_DB = {
   "Mitsubishi_Outlander": { driver: '26"', passenger: '18"', rear: '12"' },
   "Genesis_GV80": { driver: '26"', passenger: '18"', rear: '12"' },
   "Porsche_Cayenne": { driver: '26"', passenger: '20"', rear: '14"' },
+  "Porsche_Macan": { driver: '26"', passenger: '18"', rear: '14"' },
+  "Genesis_GV70": { driver: '26"', passenger: '18"', rear: '12"' },
+  "Genesis_G90": { driver: '26"', passenger: '19"', rear: null },
+  "Cadillac_CT5": { driver: '26"', passenger: '19"', rear: null },
+  "Cadillac_XT5": { driver: '26"', passenger: '18"', rear: '12"' },
+  "Buick_Enclave": { driver: '26"', passenger: '20"', rear: '12"' },
+  "Buick_Encore": { driver: '26"', passenger: '16"', rear: '12"' },
 };
