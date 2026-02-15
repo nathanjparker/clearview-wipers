@@ -824,7 +824,7 @@ export default function WiperBladeApp() {
   function NewCustomerView() {
     const theme = useContext(ThemeContext) || themeLight;
     const [form, setForm] = useState({ name: "", phone: "", email: "", address: "", notes: "" });
-    const [vehicles, setVehicles] = useState([{ make: "", model: "", year: "", wiperSizes: null }]);
+    const [vehicles, setVehicles] = useState([{ make: "", model: "", year: "", wiperSizes: null, notes: "" }]);
     const [step, setStep] = useState(1);
     const [verifyLoading, setVerifyLoading] = useState(false);
     const [verifyResult, setVerifyResult] = useState(null);
@@ -832,7 +832,7 @@ export default function WiperBladeApp() {
     const [addressSuggestions, setAddressSuggestions] = useState([]);
     const addressDebounceRef = useRef(null);
 
-    const addVehicle = () => setVehicles([...vehicles, { make: "", model: "", year: "", wiperSizes: null }]);
+    const addVehicle = () => setVehicles([...vehicles, { make: "", model: "", year: "", wiperSizes: null, notes: "" }]);
 
     const updateVehicle = (idx, field, val) => {
       const updated = [...vehicles];
@@ -845,7 +845,9 @@ export default function WiperBladeApp() {
     };
 
     const removeVehicle = (idx) => {
-      if (vehicles.length > 1) setVehicles(vehicles.filter((_, i) => i !== idx));
+      if (vehicles.length <= 1) return;
+      if (!window.confirm("Remove this vehicle?")) return;
+      setVehicles(vehicles.filter((_, i) => i !== idx));
     };
 
     useEffect(() => {
@@ -1008,6 +1010,7 @@ export default function WiperBladeApp() {
                   <Select label="Year" options={YEARS} placeholder="Select year" value={v.year} onChange={e => updateVehicle(idx, "year", e.target.value)} />
                   <Select label="Make" options={MAKES} placeholder="Select make" value={v.make} onChange={e => updateVehicle(idx, "make", e.target.value)} />
                   <Input label="Model" placeholder="e.g. Camry, CR-V, F-150" value={v.model} onChange={e => updateVehicle(idx, "model", e.target.value)} />
+                  <Input label="Note" placeholder="e.g. Red, in alley, has alarm" value={v.notes ?? ""} onChange={e => updateVehicle(idx, "notes", e.target.value)} />
                   {v.make && (v.model?.length >= 1 || getModelSuggestions(v.make, "").length > 0) && (
                     <div style={{ marginTop: "-8px", marginBottom: "12px" }}>
                       <div style={{ fontSize: "12px", fontWeight: "600", color: theme.textLight, marginBottom: "6px" }}>Suggestions</div>
@@ -1093,8 +1096,8 @@ export default function WiperBladeApp() {
     });
     const [vehicles, setVehicles] = useState(
       (customer.vehicles && customer.vehicles.length > 0)
-        ? customer.vehicles.map(v => ({ ...v, wiperSizes: v.wiperSizes || null }))
-        : [{ make: "", model: "", year: "", wiperSizes: null }]
+        ? customer.vehicles.map(v => ({ ...v, wiperSizes: v.wiperSizes || null, notes: v.notes ?? "" }))
+        : [{ make: "", model: "", year: "", wiperSizes: null, notes: "" }]
     );
     const [step, setStep] = useState(1);
     const [verifyLoading, setVerifyLoading] = useState(false);
@@ -1103,7 +1106,7 @@ export default function WiperBladeApp() {
     const [addressSuggestions, setAddressSuggestions] = useState([]);
     const addressDebounceRef = useRef(null);
 
-    const addVehicle = () => setVehicles([...vehicles, { make: "", model: "", year: "", wiperSizes: null }]);
+    const addVehicle = () => setVehicles([...vehicles, { make: "", model: "", year: "", wiperSizes: null, notes: "" }]);
 
     const updateVehicle = (idx, field, val) => {
       const updated = [...vehicles];
@@ -1115,7 +1118,9 @@ export default function WiperBladeApp() {
     };
 
     const removeVehicle = (idx) => {
-      if (vehicles.length > 1) setVehicles(vehicles.filter((_, i) => i !== idx));
+      if (vehicles.length <= 1) return;
+      if (!window.confirm("Remove this vehicle?")) return;
+      setVehicles(vehicles.filter((_, i) => i !== idx));
     };
 
     useEffect(() => {
@@ -1285,6 +1290,7 @@ export default function WiperBladeApp() {
                   <Select label="Year" options={YEARS} placeholder="Select year" value={v.year} onChange={e => updateVehicle(idx, "year", e.target.value)} />
                   <Select label="Make" options={MAKES} placeholder="Select make" value={v.make} onChange={e => updateVehicle(idx, "make", e.target.value)} />
                   <Input label="Model" placeholder="e.g. Camry, CR-V, F-150" value={v.model} onChange={e => updateVehicle(idx, "model", e.target.value)} />
+                  <Input label="Note" placeholder="e.g. Red, in alley, has alarm" value={v.notes ?? ""} onChange={e => updateVehicle(idx, "notes", e.target.value)} />
                   {v.make && (v.model?.length >= 1 || getModelSuggestions(v.make, "").length > 0) && (
                     <div style={{ marginTop: "-8px", marginBottom: "12px" }}>
                       <div style={{ fontSize: "12px", fontWeight: "600", color: theme.textLight, marginBottom: "6px" }}>Suggestions</div>
@@ -1346,13 +1352,17 @@ export default function WiperBladeApp() {
   }
 
   // ─── CUSTOMER DETAIL ───
-  function CustomerDetailView({ customer }) {
+  function CustomerDetailView({ customer: customerProp }) {
     const theme = useContext(ThemeContext) || themeLight;
+    const customer = customers.find(c => c.id === customerProp?.id) || customerProp;
     if (!customer) return null;
     const customerJobs = jobs.filter(j => j.customerId === customer.id);
     const [mapLoading, setMapLoading] = useState(false);
     const [mapResult, setMapResult] = useState(null);
     const [mapError, setMapError] = useState(null);
+    const [editingVehicleIdx, setEditingVehicleIdx] = useState(null);
+    const [editVehicle, setEditVehicle] = useState({ make: "", model: "", year: "", wiperSizes: null, notes: "" });
+    const [showDeleteCustomerConfirm, setShowDeleteCustomerConfirm] = useState(false);
 
     const createJob = (vIdx) => {
       const v = customer.vehicles[vIdx];
@@ -1378,6 +1388,37 @@ export default function WiperBladeApp() {
       };
       addJob(newJob);
       nav("jobs", "detail", newJob);
+    };
+
+    const startEditingVehicle = (idx) => {
+      const v = customer.vehicles[idx];
+      if (!v) return;
+      setEditVehicle({ make: v.make || "", model: v.model || "", year: v.year || "", wiperSizes: v.wiperSizes ?? null, notes: v.notes ?? "" });
+      setEditingVehicleIdx(idx);
+    };
+
+    const saveVehicleEdit = () => {
+      if (editingVehicleIdx == null) return;
+      const wiperSizes = lookupWiperSizes(editVehicle.make, editVehicle.model);
+      const updatedVehicles = [...customer.vehicles];
+      updatedVehicles[editingVehicleIdx] = { ...updatedVehicles[editingVehicleIdx], make: editVehicle.make, model: editVehicle.model, year: editVehicle.year, wiperSizes: wiperSizes ?? updatedVehicles[editingVehicleIdx].wiperSizes, notes: editVehicle.notes ?? "" };
+      updateCustomer({ ...customer, vehicles: updatedVehicles });
+      setEditingVehicleIdx(null);
+    };
+
+    const removeVehicleAt = (idx) => {
+      if (customer.vehicles.length <= 1) return;
+      if (!window.confirm("Remove this vehicle?")) return;
+      updateCustomer({ ...customer, vehicles: customer.vehicles.filter((_, i) => i !== idx) });
+      setEditingVehicleIdx(null);
+    };
+
+    const addVehicle = () => {
+      const newVehicle = { make: "", model: "", year: "", wiperSizes: null, notes: "" };
+      const newVehicles = [...customer.vehicles, newVehicle];
+      updateCustomer({ ...customer, vehicles: newVehicles });
+      setEditVehicle(newVehicle);
+      setEditingVehicleIdx(newVehicles.length - 1);
     };
 
     return (
@@ -1457,34 +1498,64 @@ export default function WiperBladeApp() {
             )}
           </Card>
 
-          <h3 style={{ fontSize: "15px", fontWeight: "700", margin: "20px 0 12px" }}>Vehicles</h3>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "20px 0 12px" }}>
+            <h3 style={{ fontSize: "15px", fontWeight: "700", margin: 0 }}>Vehicles</h3>
+            <button type="button" onClick={addVehicle} style={{ ...baseBtn, padding: "8px 14px", fontSize: "13px", background: theme.primary, color: "white" }}>Add Vehicle</button>
+          </div>
           {customer.vehicles.map((v, idx) => (
             <Card key={idx} style={{ marginBottom: "12px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
-                <div>
-                  <div style={{ fontWeight: "700", fontSize: "15px" }}>{v.year} {v.make} {v.model}</div>
-                  {v.wiperSizes && (
-                    <div style={{ fontSize: "13px", color: theme.textLight, marginTop: "4px" }}>
-                      D: {v.wiperSizes.driver} · P: {v.wiperSizes.passenger}{v.wiperSizes.rear ? ` · R: ${v.wiperSizes.rear}` : ""}
+              {editingVehicleIdx === idx ? (
+                <div onClick={e => e.stopPropagation()}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                    <div style={{ fontSize: "13px", fontWeight: "700", color: theme.textLight }}>Edit vehicle</div>
+                    {customer.vehicles.length > 1 && (
+                      <button type="button" onClick={() => removeVehicleAt(idx)} style={{
+                        background: "#FFEBEE", border: "none", borderRadius: "8px", padding: "8px", cursor: "pointer", color: "#C62828", display: "flex",
+                      }} title="Delete vehicle">
+                        <Icons.Trash />
+                      </button>
+                    )}
+                  </div>
+                  <Select label="Year" options={YEARS} placeholder="Select year" value={editVehicle.year} onChange={e => setEditVehicle(prev => ({ ...prev, year: e.target.value }))} />
+                  <Select label="Make" options={MAKES} placeholder="Select make" value={editVehicle.make} onChange={e => setEditVehicle(prev => ({ ...prev, make: e.target.value }))} />
+                  <Input label="Model" placeholder="e.g. Camry, CR-V, F-150" value={editVehicle.model} onChange={e => setEditVehicle(prev => ({ ...prev, model: e.target.value }))} />
+                  {editVehicle.make && editVehicle.model && (
+                    <div style={{ marginTop: "8px", fontSize: "13px", color: theme.textLight }}>
+                      {lookupWiperSizes(editVehicle.make, editVehicle.model) ? (
+                        <span style={{ color: "#2E7D32" }}>✓ Sizes: {[lookupWiperSizes(editVehicle.make, editVehicle.model).driver, lookupWiperSizes(editVehicle.make, editVehicle.model).passenger, lookupWiperSizes(editVehicle.make, editVehicle.model).rear].filter(Boolean).join(", ")}</span>
+                      ) : (
+                        <span style={{ color: "#E65100" }}>Not in database</span>
+                      )}
                     </div>
                   )}
+                  <Input label="Note" placeholder="e.g. Red, in alley, has alarm" value={editVehicle.notes ?? ""} onChange={e => setEditVehicle(prev => ({ ...prev, notes: e.target.value }))} />
+                  <div style={{ display: "flex", gap: "8px", marginTop: "14px" }}>
+                    <button type="button" onClick={saveVehicleEdit} style={{ ...baseBtn, flex: 1, padding: "10px", background: theme.primary, color: "white" }}>Save</button>
+                    <button type="button" onClick={() => setEditingVehicleIdx(null)} style={{ ...baseBtn, flex: 1, padding: "10px", background: theme.border, color: theme.text }}>Cancel</button>
+                  </div>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <button onClick={() => createJob(idx)} style={{
+              ) : (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }} onClick={() => startEditingVehicle(idx)}>
+                  <div style={{ flex: 1, cursor: "pointer" }}>
+                    <div style={{ fontWeight: "700", fontSize: "15px" }}>{v.year} {v.make} {v.model}</div>
+                    {v.wiperSizes && (
+                      <div style={{ fontSize: "13px", color: theme.textLight, marginTop: "4px" }}>
+                        D: {v.wiperSizes.driver} · P: {v.wiperSizes.passenger}{v.wiperSizes.rear ? ` · R: ${v.wiperSizes.rear}` : ""}
+                      </div>
+                    )}
+                    {v.notes && (
+                      <div style={{ fontSize: "13px", color: theme.textLight, marginTop: "4px", fontStyle: "italic" }}>{v.notes}</div>
+                    )}
+                    <div style={{ fontSize: "12px", color: theme.textLight, marginTop: "6px" }}>Tap to edit</div>
+                  </div>
+                  <button onClick={e => { e.stopPropagation(); createJob(idx); }} style={{
                     ...baseBtn, padding: "8px 16px", fontSize: "13px",
                     background: theme.primary, color: "white",
                   }}>
                     Create Job
                   </button>
-                  {customer.vehicles.length > 1 && (
-                    <button type="button" onClick={() => { if (window.confirm("Remove this vehicle?")) updateCustomer({ ...customer, vehicles: customer.vehicles.filter((_, i) => i !== idx) }); }} style={{
-                      background: "#FFEBEE", border: "none", borderRadius: "8px", padding: "8px", cursor: "pointer", color: "#C62828", display: "flex",
-                    }} title="Remove vehicle">
-                      <Icons.Trash />
-                    </button>
-                  )}
                 </div>
-              </div>
+              )}
             </Card>
           ))}
 
@@ -1513,11 +1584,7 @@ export default function WiperBladeApp() {
           )}
 
           <div style={{ marginTop: "28px", paddingTop: "20px", borderTop: `1px solid ${theme.border}` }}>
-            <button type="button" onClick={async () => {
-              if (!window.confirm("Delete this customer and all their jobs? This cannot be undone.")) return;
-              await deleteCustomer(customer);
-              nav("customers");
-            }} style={{
+            <button type="button" onClick={() => setShowDeleteCustomerConfirm(true)} style={{
               ...baseBtn, width: "100%", padding: "12px", fontSize: "14px",
               background: "transparent", color: "#C62828", border: "1px solid #C62828",
             }}>
@@ -1525,6 +1592,23 @@ export default function WiperBladeApp() {
             </button>
           </div>
         </div>
+
+        {showDeleteCustomerConfirm && (
+          <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.4)" }} onClick={() => setShowDeleteCustomerConfirm(false)}>
+            <div style={{ background: theme.card, borderRadius: "14px", padding: "24px", width: "90%", maxWidth: "320px", boxShadow: theme.shadow, border: `1px solid ${theme.border}` }} onClick={e => e.stopPropagation()}>
+              <div style={{ fontSize: "16px", fontWeight: "600", marginBottom: "8px" }}>Delete customer?</div>
+              <div style={{ fontSize: "14px", color: theme.textLight, marginBottom: "20px" }}>This will delete this customer and all their jobs. This cannot be undone.</div>
+              <div style={{ display: "flex", gap: "12px" }}>
+                <button type="button" onClick={() => setShowDeleteCustomerConfirm(false)} style={{ ...baseBtn, flex: 1, padding: "12px", background: theme.border, color: theme.text }}>Cancel</button>
+                <button type="button" onClick={async () => {
+                  setShowDeleteCustomerConfirm(false);
+                  await deleteCustomer(customer);
+                  nav("customers");
+                }} style={{ ...baseBtn, flex: 1, padding: "12px", background: "#C62828", color: "white" }}>Delete</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -1848,6 +1932,7 @@ export default function WiperBladeApp() {
     };
 
     const removeVehicleFromSurvey = (idx) => {
+      if (!window.confirm("Remove this vehicle from the survey?")) return;
       setSurveyVehicles((prev) => prev.filter((_, i) => i !== idx));
     };
 
