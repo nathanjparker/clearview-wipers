@@ -16,5 +16,8 @@ service cloud.firestore {
     match /expenses/{docId} {
       allow read, write: if true;
     }
+    match /blockSurveys/{docId} {
+      allow read, write: if true;
+    }
   }
 }

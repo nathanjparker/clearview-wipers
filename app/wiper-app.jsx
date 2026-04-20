@@ -31,7 +31,8 @@ const generateId = () => Math.random().toString(36).substring(2, 10);
 
 const formatDate = (d) => {
   if (!d) return "";
-  const date = new Date(d);
+  const raw = typeof d?.toDate === "function" ? d.toDate().toISOString() : d;
+  const date = new Date(raw);
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 };
 
@@ -456,6 +457,7 @@ export default function WiperBladeApp() {
   const [jobs, setJobs] = useState([]);
   const [inventory, setInventory] = useState({});
   const [expenses, setExpenses] = useState([]);
+  const [blockSurveys, setBlockSurveys] = useState([]);
   const [firestoreReady, setFirestoreReady] = useState(false);
   const [subView, setSubView] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
@@ -508,13 +510,27 @@ export default function WiperBladeApp() {
     const unsubExpenses = onSnapshot(collection(db, "expenses"), (snap) => {
       setExpenses(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
+    const unsubBlockSurveys = onSnapshot(collection(db, "blockSurveys"), (snap) => {
+      setBlockSurveys(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
     setFirestoreReady(true);
     return () => {
       unsubCustomers();
       unsubJobs();
       unsubInventory();
       unsubExpenses();
+      unsubBlockSurveys();
     };
+  }, []);
+
+  useEffect(() => {
+    if (db) return;
+    try {
+      const raw = typeof localStorage !== "undefined" && localStorage.getItem("blockSurveysLocal");
+      if (raw) setBlockSurveys(JSON.parse(raw));
+    } catch (e) {
+      console.warn("Failed to load saved block surveys from storage", e);
+    }
   }, []);
 
   // Write helpers: persist to Firestore when db is set, else update local state only
@@ -565,6 +581,44 @@ export default function WiperBladeApp() {
   const addExpenseToFirestore = useCallback((expense) => {
     if (db) setDoc(doc(db, "expenses", expense.id), expense);
     else setExpenses((prev) => [...prev, expense]);
+  }, []);
+
+  const saveBlockSurvey = useCallback(async (payload) => {
+    const full = {
+      ...payload,
+      type: "blockSurvey",
+      updatedAt: new Date().toISOString(),
+    };
+    if (db) {
+      await setDoc(doc(db, "blockSurveys", payload.id), full);
+    } else {
+      setBlockSurveys((prev) => {
+        const exists = prev.some((s) => s.id === payload.id);
+        const next = exists ? prev.map((s) => (s.id === payload.id ? full : s)) : [...prev, full];
+        try {
+          localStorage.setItem("blockSurveysLocal", JSON.stringify(next));
+        } catch (e) {
+          console.warn("Failed to persist block surveys", e);
+        }
+        return next;
+      });
+    }
+  }, []);
+
+  const deleteBlockSurvey = useCallback((surveyId) => {
+    if (db) {
+      deleteDoc(doc(db, "blockSurveys", surveyId));
+    } else {
+      setBlockSurveys((prev) => {
+        const next = prev.filter((s) => s.id !== surveyId);
+        try {
+          localStorage.setItem("blockSurveysLocal", JSON.stringify(next));
+        } catch (e) {
+          console.warn("Failed to persist block surveys", e);
+        }
+        return next;
+      });
+    }
   }, []);
 
   const pendingJobs = jobs.filter(j => j.status === "pending");
@@ -1945,6 +1999,72 @@ export default function WiperBladeApp() {
     const [showAddForm, setShowAddForm] = useState(false);
     const [addMake, setAddMake] = useState("");
     const [addModel, setAddModel] = useState("");
+    const [surveySaving, setSurveySaving] = useState(false);
+
+    useEffect(() => {
+      if (selectedItem?.type === "blockSurvey") {
+        setSurveyName(selectedItem.name || "");
+        setSurveyVehicles(Array.isArray(selectedItem.vehicles) ? selectedItem.vehicles : []);
+        return;
+      }
+      try {
+        if (typeof localStorage === "undefined") return;
+        const raw = localStorage.getItem("blockSurveyDraft");
+        if (!raw) return;
+        const d = JSON.parse(raw);
+        setSurveyName(typeof d.surveyName === "string" ? d.surveyName : "");
+        setSurveyVehicles(Array.isArray(d.surveyVehicles) ? d.surveyVehicles : []);
+      } catch (e) {
+        console.warn("Block survey draft restore failed", e);
+      }
+    }, [selectedItem]);
+
+    useEffect(() => {
+      if (typeof localStorage === "undefined") return;
+      if (selectedItem?.type === "blockSurvey") return;
+      const t = setTimeout(() => {
+        try {
+          localStorage.setItem("blockSurveyDraft", JSON.stringify({ surveyName, surveyVehicles }));
+        } catch (e) {
+          console.warn("Block survey draft save failed", e);
+        }
+      }, 400);
+      return () => clearTimeout(t);
+    }, [surveyName, surveyVehicles, selectedItem]);
+
+    const formatWiperLine = (wiperSizes) => {
+      if (!wiperSizes) return null;
+      const parts = [wiperSizes.driver, wiperSizes.passenger, wiperSizes.rear].filter(Boolean);
+      if (!parts.length) return null;
+      return parts.join(" · ");
+    };
+
+    const handleSaveSurvey = async () => {
+      if (surveyVehicles.length === 0) {
+        window.alert("Add at least one vehicle before saving.");
+        return;
+      }
+      const id = selectedItem?.type === "blockSurvey" && selectedItem.id ? selectedItem.id : generateId();
+      const nameTrim = surveyName.trim() || `Block survey ${formatDate(new Date().toISOString())}`;
+      setSurveySaving(true);
+      try {
+        await saveBlockSurvey({
+          id,
+          name: nameTrim,
+          vehicles: surveyVehicles,
+          createdAt: selectedItem?.type === "blockSurvey" && selectedItem.createdAt ? selectedItem.createdAt : new Date().toISOString(),
+        });
+        try {
+          localStorage.removeItem("blockSurveyDraft");
+        } catch (_) { /* ignore */ }
+        nav("inventory", null, null);
+      } catch (e) {
+        console.error(e);
+        window.alert("Could not save survey. Check your connection and try again.");
+      } finally {
+        setSurveySaving(false);
+      }
+    };
 
     const addVehicleToSurvey = (make, model) => {
       const wiperSizes = lookupWiperSizes(make, model);
@@ -1989,7 +2109,7 @@ export default function WiperBladeApp() {
         <div style={{ padding: "16px 20px" }}>
           <Input label="Survey name (optional)" placeholder="e.g. Oak St block" value={surveyName} onChange={(e) => setSurveyName(e.target.value)} />
 
-          <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap", alignItems: "stretch" }}>
             <button type="button" onClick={() => setShowAddForm((v) => !v)} style={{
               ...baseBtn, padding: "10px 16px", fontSize: "14px",
               background: "#E8F5E9", color: "#2E7D32", border: "1px solid #C8E6C9",
@@ -2002,7 +2122,17 @@ export default function WiperBladeApp() {
             }}>
               <Icons.Camera /> {surveyPhotoIdentifying ? "Identifying..." : "Add from photo"}
             </button>
+            <button type="button" onClick={handleSaveSurvey} disabled={surveySaving || surveyVehicles.length === 0} style={{
+              ...baseBtn, padding: "10px 16px", fontSize: "14px", flex: "1 1 140px",
+              background: surveyVehicles.length === 0 ? theme.border : theme.primary,
+              color: "white", minWidth: "min(100%, 140px)",
+            }}>
+              {surveySaving ? "Saving…" : "Save survey"}
+            </button>
           </div>
+          <p style={{ fontSize: "13px", color: theme.textLight, margin: "-8px 0 16px", lineHeight: 1.4 }}>
+            Surveys are stored in your account data. Your work also auto-saves as a draft on this device if you leave without tapping Save.
+          </p>
 
           {showAddForm && (
             <Card style={{ marginBottom: "16px", background: "#F5F7FA" }}>
@@ -2043,15 +2173,20 @@ export default function WiperBladeApp() {
                 {surveyVehicles.map((v, idx) => (
                   <Card key={idx} style={{ padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div>
-                      <div style={{ fontWeight: "700", fontSize: "14px" }}>{v.make} {v.model}</div>
+                      <div style={{ fontWeight: "700", fontSize: "15px", color: theme.text }}>{v.make} {v.model}</div>
                       {v.wiperSizes ? (
-                        <div style={{ fontSize: "12px", color: theme.textLight, marginTop: "4px" }}>
-                          {v.wiperSizes.driver && <span>{v.wiperSizes.driver}</span>}
-                          {v.wiperSizes.passenger && <span> / {v.wiperSizes.passenger}</span>}
-                          {v.wiperSizes.rear && <span> / {v.wiperSizes.rear}</span>}
-                        </div>
+                        formatWiperLine(v.wiperSizes) ? (
+                          <div style={{
+                            fontSize: "16px", fontWeight: "700", color: theme.text, marginTop: "6px",
+                            letterSpacing: "0.02em", lineHeight: 1.3,
+                          }}>
+                            {formatWiperLine(v.wiperSizes)}
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: "14px", fontWeight: "600", color: theme.warning, marginTop: "6px" }}>Sizes not in database</div>
+                        )
                       ) : (
-                        <div style={{ fontSize: "12px", color: theme.warning, marginTop: "4px" }}>Sizes not in database</div>
+                        <div style={{ fontSize: "14px", fontWeight: "600", color: theme.warning, marginTop: "6px" }}>Sizes not in database</div>
                       )}
                     </div>
                     <button type="button" onClick={() => removeVehicleFromSurvey(idx)} style={{
@@ -2068,20 +2203,23 @@ export default function WiperBladeApp() {
           {Object.keys(bladesNeededForSurvey).length > 0 && (
             <div style={{ marginTop: "8px" }}>
               <h3 style={{ fontSize: "15px", fontWeight: "700", margin: "0 0 12px" }}>Suggested blades for this survey</h3>
-              <Card style={{ background: "#FFF8E1" }}>
+              <Card style={{
+                background: "#FFF8E1", color: "#111827", border: "1px solid #FFE082",
+                boxShadow: "0 1px 8px rgba(245, 158, 11, 0.15)",
+              }}>
                 {Object.entries(bladesNeededForSurvey).sort((a, b) => parseInt(a[0]) - parseInt(b[0])).map(([size, needed]) => {
                   const have = inventory[size] || 0;
                   const toBuy = Math.max(0, needed - have);
                   return (
                     <div key={size} style={{
-                      display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0",
-                      borderBottom: "1px solid #FFE082", fontSize: "14px",
+                      display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0",
+                      borderBottom: "1px solid #FFE082", fontSize: "15px",
                     }}>
-                      <span style={{ fontWeight: "600" }}>{size}</span>
+                      <span style={{ fontWeight: "800", fontSize: "17px", color: "#0F172A" }}>{size}</span>
                       <div style={{ textAlign: "right" }}>
-                        <span style={{ color: theme.textLight }}>× {needed}</span>
-                        {have > 0 && <span style={{ marginLeft: "8px", color: "#2E7D32" }}>— {have} in stock</span>}
-                        {toBuy > 0 && <div style={{ fontWeight: "700", color: "#E65100", marginTop: "2px" }}>Consider buying: {toBuy}</div>}
+                        <span style={{ color: "#374151", fontWeight: "600" }}>× {needed}</span>
+                        {have > 0 && <span style={{ marginLeft: "8px", color: "#15803D", fontWeight: "600" }}>— {have} in stock</span>}
+                        {toBuy > 0 && <div style={{ fontWeight: "700", color: "#C2410C", marginTop: "4px", fontSize: "14px" }}>Consider buying: {toBuy}</div>}
                       </div>
                     </div>
                   );
@@ -2132,13 +2270,56 @@ export default function WiperBladeApp() {
             </div>
           </Card>
 
-          <button type="button" onClick={() => nav("inventory", "survey")} style={{
+          <button type="button" onClick={() => nav("inventory", "survey", null)} style={{
             ...baseBtn, width: "100%", marginBottom: "20px",
             background: "#E3F2FD", color: theme.primary, border: `2px solid ${theme.primaryLight}`,
             padding: "14px", fontSize: "15px",
           }}>
             <Icons.Camera /> Block survey — estimate blades for an area
           </button>
+
+          {blockSurveys.length > 0 && (
+            <div style={{ marginBottom: "20px" }}>
+              <h3 style={{ fontSize: "15px", fontWeight: "700", margin: "0 0 10px", color: theme.text }}>Saved block surveys</h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {[...blockSurveys]
+                  .sort((a, b) => (b.updatedAt || b.createdAt || "").localeCompare(a.updatedAt || a.createdAt || ""))
+                  .map((s) => (
+                    <Card key={s.id} style={{ padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}>
+                      <button
+                        type="button"
+                        onClick={() => nav("inventory", "survey", s)}
+                        style={{
+                          flex: 1, textAlign: "left", border: "none", background: "transparent",
+                          padding: 0, cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+                        }}
+                      >
+                        <div style={{ fontWeight: "700", fontSize: "15px", color: theme.text }}>{s.name || "Untitled survey"}</div>
+                        <div style={{ fontSize: "13px", color: theme.textLight, marginTop: "4px" }}>
+                          {(s.vehicles?.length ?? 0)} vehicle{(s.vehicles?.length === 1) ? "" : "s"}
+                          {s.updatedAt && ` · ${formatDate(s.updatedAt)}`}
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!window.confirm("Delete this saved survey?")) return;
+                          deleteBlockSurvey(s.id);
+                        }}
+                        style={{
+                          background: "#FFEBEE", border: "none", borderRadius: "8px", padding: "8px", cursor: "pointer",
+                          color: "#C62828", display: "flex", flexShrink: 0,
+                        }}
+                        aria-label="Delete survey"
+                      >
+                        <Icons.Trash />
+                      </button>
+                    </Card>
+                  ))}
+              </div>
+            </div>
+          )}
 
           <div style={{ display: "grid", gap: "10px" }}>
             {sizes.map(size => {
@@ -2205,7 +2386,7 @@ export default function WiperBladeApp() {
           {Object.keys(bladesNeeded).length > 0 && (
             <div style={{ marginTop: "24px" }}>
               <h3 style={{ fontSize: "15px", fontWeight: "700", margin: "0 0 12px" }}>🛒 Shopping List for Pending Jobs</h3>
-              <Card style={{ background: "#FFF8E1" }}>
+              <Card style={{ background: "#FFF8E1", color: "#111827", border: "1px solid #FFE082" }}>
                 {Object.entries(bladesNeeded).sort().map(([size, needed]) => {
                   const have = inventory[size] || 0;
                   const toBuy = Math.max(0, needed - have);
@@ -2214,13 +2395,13 @@ export default function WiperBladeApp() {
                       display: "flex", justifyContent: "space-between", padding: "8px 0",
                       borderBottom: `1px solid #FFE082`, fontSize: "14px",
                     }}>
-                      <span style={{ fontWeight: "600" }}>{size} blades</span>
-                      <span style={{ fontWeight: "700", color: "#E65100" }}>Need to buy: {toBuy}</span>
+                      <span style={{ fontWeight: "700", color: "#0F172A" }}>{size} blades</span>
+                      <span style={{ fontWeight: "700", color: "#C2410C" }}>Need to buy: {toBuy}</span>
                     </div>
                   ) : null;
                 })}
                 {Object.entries(bladesNeeded).every(([size, needed]) => (inventory[size] || 0) >= needed) && (
-                  <div style={{ textAlign: "center", padding: "12px", color: "#2E7D32", fontWeight: "600" }}>
+                  <div style={{ textAlign: "center", padding: "12px", color: "#15803D", fontWeight: "600" }}>
                     ✓ You have all the blades needed!
                   </div>
                 )}
